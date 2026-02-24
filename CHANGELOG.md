@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.17.4 - 2026-02-24
+
+### Dispatcher cooldown logic and failover error classification improvements
+
+## New Features
+
+- **Dispatcher cooldown check**: Added cooldown validation before processing targets to prevent excessive resource utilization ([2a04aff](https://github.com/mcowger/plexus/commit/2a04aff))
+
+## Bug Fixes
+
+- **Failover error handling**: Improved HTTP error classification in failover logic - 400 errors are now retryable while 413 (Payload Too Large) and 422 (Unprocessable Entity) errors remain non-retryable ([96c2ad1](https://github.com/mcowger/plexus/commit/96c2ad1))
+
+---
+
+The Docker image has been updated and can be found at `ghcr.io/mcowger/plexus:latest`
+
 ## v0.17.3 - 2026-02-24
 
 ### v0.17.3: POE Point Value Display Fix
