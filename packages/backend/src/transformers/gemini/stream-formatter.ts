@@ -4,15 +4,95 @@ import { encode } from 'eventsource-encoder';
 /**
  * Formats unified chunks back into Gemini's SSE format.
  *
- * Simpler than Anthropic's formatter - Gemini uses a flat structure:
- * - Each chunk contains candidates array with parts
- * - No complex block lifecycle management needed
+ * Handles block lifecycle events by emitting proper SSE event types:
+ * - message_start, message_delta, message_end
+ * - text_start, text_delta, text_end
+ * - thinking_start, thinking_delta, thinking_end
+ * - toolcall_start, toolcall_delta, toolcall_end
+ * - usage, done
  */
 export function formatGeminiStream(stream: ReadableStream): ReadableStream {
   const encoder = new TextEncoder();
 
   const transformer = new TransformStream({
     transform(chunk: any, controller) {
+      // Handle block lifecycle events
+      if (chunk.event) {
+        const eventName = chunk.event;
+        const eventData: Record<string, any> = {};
+
+        // Build event-specific data
+        if (eventName === 'message_start') {
+          eventData.type = 'message_start';
+          eventData.message = {
+            id: chunk.id || 'msg_' + Date.now(),
+            type: 'message',
+            role: chunk.delta?.role || 'assistant',
+            model: chunk.model,
+            content: [],
+            usage: chunk.usage
+              ? {
+                  input_tokens: chunk.usage.input_tokens || 0,
+                  output_tokens: chunk.usage.output_tokens || 0,
+                }
+              : { input_tokens: 0, output_tokens: 0 },
+          };
+        } else if (eventName === 'text_start') {
+          eventData.type = 'text_start';
+          eventData.index = 0;
+        } else if (eventName === 'text_delta') {
+          eventData.type = 'text_delta';
+          eventData.delta = chunk.delta?.content || '';
+          eventData.index = 0;
+        } else if (eventName === 'text_end') {
+          eventData.type = 'text_end';
+          eventData.index = 0;
+        } else if (eventName === 'thinking_start') {
+          eventData.type = 'thinking_start';
+          eventData.index = 0;
+        } else if (eventName === 'thinking_delta') {
+          eventData.type = 'thinking_delta';
+          eventData.delta = chunk.delta?.reasoning_content || '';
+          eventData.index = 0;
+        } else if (eventName === 'thinking_end') {
+          eventData.type = 'thinking_end';
+          eventData.index = 0;
+        } else if (eventName === 'toolcall_start') {
+          eventData.type = 'toolcall_start';
+          eventData.index = 0;
+        } else if (eventName === 'toolcall_delta') {
+          eventData.type = 'toolcall_delta';
+          const tc = chunk.delta?.tool_calls?.[0];
+          eventData.delta = tc
+            ? {
+                name: tc.function?.name || '',
+                args: tc.function?.arguments || '',
+                id: tc.id || '',
+              }
+            : '';
+          eventData.index = 0;
+        } else if (eventName === 'toolcall_end') {
+          eventData.type = 'toolcall_end';
+          eventData.index = 0;
+        } else if (eventName === 'message_end') {
+          eventData.type = 'message_end';
+        } else if (eventName === 'usage') {
+          eventData.type = 'usage';
+          eventData.usage = chunk.usage;
+        } else if (eventName === 'done') {
+          eventData.type = 'done';
+        }
+
+        // Emit SSE event with event name
+        const sseMessage = encode({
+          event: eventName,
+          data: JSON.stringify(eventData),
+        });
+        controller.enqueue(encoder.encode(sseMessage));
+        return;
+      }
+
+      // Handle regular content chunks (non-event)
       const parts: Part[] = [];
 
       if (chunk.delta?.content) parts.push({ text: chunk.delta.content });
