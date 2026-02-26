@@ -78,7 +78,7 @@ describe('formatGeminiStream', () => {
     expect(usageEvent.event).toBe('usage');
     expect(usageEvent.data.type).toBe('usage');
     expect(usageEvent.data.usage).toBeDefined();
-    expect(usageEvent.data.usage.prompt_tokens).toBe(100);
+    expect(usageEvent.data.usage.prompt_tokens).toBe(120);
     expect(usageEvent.data.usage.completion_tokens).toBe(50);
     expect(usageEvent.data.usage.total_tokens).toBe(150);
     expect(usageEvent.data.usage.prompt_tokens_details.cached_tokens).toBe(20);
@@ -122,7 +122,7 @@ describe('formatGeminiStream', () => {
     expect(sseChunks.length).toBe(1);
     const usageChunk = sseChunks[0];
     expect(usageChunk.data.usageMetadata).toBeDefined();
-    expect(usageChunk.data.usageMetadata.promptTokenCount).toBe(100);
+    expect(usageChunk.data.usageMetadata.promptTokenCount).toBe(120);
     expect(usageChunk.data.usageMetadata.candidatesTokenCount).toBe(50);
   });
 });

@@ -70,7 +70,9 @@ export function transformGeminiStream(stream: ReadableStream): ReadableStream {
                 event: 'usage' as StreamBlockEventType,
                 delta: {},
                 usage: {
-                  input_tokens: data.usageMetadata.promptTokenCount,
+                  input_tokens:
+                    data.usageMetadata.promptTokenCount -
+                    (data.usageMetadata.cachedContentTokenCount || 0),
                   output_tokens: data.usageMetadata.candidatesTokenCount,
                   total_tokens: data.usageMetadata.totalTokenCount,
                   reasoning_tokens: data.usageMetadata.thoughtsTokenCount,
@@ -255,7 +257,9 @@ export function transformGeminiStream(stream: ReadableStream): ReadableStream {
                 finish_reason: finishReason,
                 usage: data.usageMetadata
                   ? {
-                      input_tokens: data.usageMetadata.promptTokenCount,
+                      input_tokens:
+                        data.usageMetadata.promptTokenCount -
+                        (data.usageMetadata.cachedContentTokenCount || 0),
                       output_tokens: data.usageMetadata.candidatesTokenCount,
                       total_tokens: data.usageMetadata.totalTokenCount,
                       reasoning_tokens: data.usageMetadata.thoughtsTokenCount,

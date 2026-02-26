@@ -44,15 +44,11 @@ export async function formatGeminiResponse(response: UnifiedChatResponse): Promi
     candidates: [{ content: { role: 'model', parts }, finishReason, index: 0 }],
     usageMetadata: response.usage
       ? {
-          promptTokenCount: response.usage.input_tokens,
+          promptTokenCount: response.usage.input_tokens + (response.usage.cached_tokens || 0),
           candidatesTokenCount: response.usage.output_tokens,
           totalTokenCount: response.usage.total_tokens,
-          ...(response.usage.reasoning_tokens
-            ? { thoughtsTokenCount: response.usage.reasoning_tokens }
-            : {}),
-          ...(response.usage.cached_tokens
-            ? { cachedContentTokenCount: response.usage.cached_tokens }
-            : {}),
+          thoughtsTokenCount: response.usage.reasoning_tokens,
+          cachedContentTokenCount: response.usage.cached_tokens,
         }
       : undefined,
     modelVersion: response.model,

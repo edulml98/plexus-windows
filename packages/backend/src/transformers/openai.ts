@@ -124,10 +124,12 @@ export class OpenAITransformer implements Transformer {
       ],
       usage: response.usage
         ? {
-            prompt_tokens: response.usage.input_tokens,
+            prompt_tokens: response.usage.input_tokens + (response.usage.cached_tokens || 0),
             completion_tokens: response.usage.output_tokens,
             total_tokens: response.usage.total_tokens,
-            prompt_tokens_details: null,
+            prompt_tokens_details: response.usage.cached_tokens
+              ? { cached_tokens: response.usage.cached_tokens }
+              : null,
             reasoning_tokens: response.usage.reasoning_tokens,
           }
         : undefined,
@@ -201,35 +203,34 @@ export class OpenAITransformer implements Transformer {
               break;
             }
 
-            const openAIChunk = {
-              id: unifiedChunk.id || 'chatcmpl-' + Date.now(),
+            const choice: any = {
+              index: 0,
+              delta: unifiedChunk.delta,
+              finish_reason: unifiedChunk.finish_reason,
+            };
+
+            const chunk: any = {
+              id: unifiedChunk.id,
               object: 'chat.completion.chunk',
               created: unifiedChunk.created || Math.floor(Date.now() / 1000),
               model: unifiedChunk.model,
-              choices: [
-                {
-                  index: 0,
-                  delta: unifiedChunk.delta,
-                  finish_reason: unifiedChunk.finish_reason || null,
-                },
-              ],
-              usage: unifiedChunk.usage
-                ? {
-                    prompt_tokens: unifiedChunk.usage.input_tokens,
-                    completion_tokens: unifiedChunk.usage.output_tokens,
-                    total_tokens: unifiedChunk.usage.total_tokens,
-                    prompt_tokens_details: {
-                      cached_tokens: unifiedChunk.usage.cached_tokens,
-                    },
-                    completion_tokens_details: {
-                      reasoning_tokens: unifiedChunk.usage.reasoning_tokens,
-                    },
-                  }
-                : undefined,
+              choices: [choice],
             };
 
-            const sseMessage = encode({ data: JSON.stringify(openAIChunk) });
-            controller.enqueue(encoder.encode(sseMessage));
+            if (unifiedChunk.usage) {
+              chunk.usage = {
+                prompt_tokens:
+                  unifiedChunk.usage.input_tokens + (unifiedChunk.usage.cached_tokens || 0),
+                completion_tokens: unifiedChunk.usage.output_tokens,
+                total_tokens: unifiedChunk.usage.total_tokens,
+                prompt_tokens_details: unifiedChunk.usage.cached_tokens
+                  ? { cached_tokens: unifiedChunk.usage.cached_tokens }
+                  : null,
+                reasoning_tokens: unifiedChunk.usage.reasoning_tokens,
+              };
+            }
+
+            controller.enqueue(encoder.encode(encode({ data: JSON.stringify(chunk) })));
           }
         } finally {
           reader.releaseLock();

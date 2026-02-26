@@ -80,7 +80,7 @@ export function formatGeminiStream(stream: ReadableStream): ReadableStream {
           eventData.type = 'usage';
           eventData.usage = chunk.usage
             ? {
-                prompt_tokens: chunk.usage.input_tokens,
+                prompt_tokens: chunk.usage.input_tokens + (chunk.usage.cached_tokens || 0),
                 completion_tokens: chunk.usage.output_tokens,
                 total_tokens: chunk.usage.total_tokens,
                 prompt_tokens_details: {
@@ -159,7 +159,7 @@ export function formatGeminiStream(stream: ReadableStream): ReadableStream {
           ],
           usageMetadata: chunk.usage
             ? {
-                promptTokenCount: chunk.usage.input_tokens,
+                promptTokenCount: chunk.usage.input_tokens + (chunk.usage.cached_tokens || 0),
                 candidatesTokenCount: chunk.usage.output_tokens,
                 totalTokenCount: chunk.usage.total_tokens,
                 ...(chunk.usage.reasoning_tokens

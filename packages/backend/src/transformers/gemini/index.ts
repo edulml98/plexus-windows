@@ -81,7 +81,9 @@ export class GeminiTransformer implements Transformer {
       // Gemini sends usage in usageMetadata
       if (data.usageMetadata) {
         return {
-          input_tokens: data.usageMetadata.promptTokenCount || 0,
+          input_tokens:
+            (data.usageMetadata.promptTokenCount || 0) -
+            (data.usageMetadata.cachedContentTokenCount || 0),
           output_tokens: data.usageMetadata.candidatesTokenCount || 0,
           cached_tokens: data.usageMetadata.cachedContentTokenCount || 0,
           reasoning_tokens: data.usageMetadata.thoughtsTokenCount || 0,

@@ -50,11 +50,13 @@ export async function transformGeminiResponse(response: any): Promise<UnifiedCha
 
   const usage = response.usageMetadata
     ? {
-        input_tokens: response.usageMetadata.promptTokenCount || 0,
-        output_tokens: response.usageMetadata.candidatesTokenCount || 0,
-        total_tokens: response.usageMetadata.totalTokenCount || 0,
-        reasoning_tokens: response.usageMetadata.thoughtsTokenCount || 0,
-        cached_tokens: response.usageMetadata.cachedContentTokenCount || 0,
+        input_tokens:
+          response.usageMetadata.promptTokenCount -
+          (response.usageMetadata.cachedContentTokenCount || 0),
+        output_tokens: response.usageMetadata.candidatesTokenCount,
+        total_tokens: response.usageMetadata.totalTokenCount,
+        reasoning_tokens: response.usageMetadata.thoughtsTokenCount,
+        cached_tokens: response.usageMetadata.cachedContentTokenCount,
         cache_creation_tokens: 0,
       }
     : undefined;
