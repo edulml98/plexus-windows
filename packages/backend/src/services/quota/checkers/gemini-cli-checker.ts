@@ -109,8 +109,7 @@ export class GeminiCliQuotaChecker extends QuotaChecker {
     }
 
     const provider =
-      this.getOption<string>('oauthProvider', 'google-gemini-cli').trim() ||
-      'google-gemini-cli';
+      this.getOption<string>('oauthProvider', 'google-gemini-cli').trim() || 'google-gemini-cli';
     const oauthAccountId = this.getOption<string>('oauthAccountId', '').trim();
     const authManager = OAuthAuthManager.getInstance();
 

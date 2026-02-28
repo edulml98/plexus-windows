@@ -65,9 +65,11 @@ export async function registerResponsesRoute(
       const transformer = new ResponsesTransformer();
 
       // Helper to normalize input into the standardized array format
-      function normalizeInput(input: unknown): Array<{ type: string; role: string; content: Array<{ type: string; text: string }> }> {
+      function normalizeInput(
+        input: unknown
+      ): Array<{ type: string; role: string; content: Array<{ type: string; text: string }> }> {
         return Array.isArray(input)
-          ? input as any[]
+          ? (input as any[])
           : [
               {
                 type: 'message',

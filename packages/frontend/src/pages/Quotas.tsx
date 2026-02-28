@@ -22,6 +22,7 @@ import {
   WisdomGateQuotaDisplay,
   KimiCodeQuotaDisplay,
   PoeQuotaDisplay,
+  GeminiCliQuotaDisplay,
   CombinedBalancesCard,
   QuotaHistoryModal,
   BalanceHistoryModal,
@@ -42,6 +43,8 @@ const RATE_LIMIT_CHECKERS = [
   'copilot',
   'wisdomgate',
   'minimax-coding',
+  'gemini-cli',
+  'gemini',
 ];
 
 // Checker display names
@@ -64,6 +67,7 @@ const CHECKER_DISPLAY_NAMES: Record<string, string> = {
   kimi: 'Kimi',
   copilot: 'GitHub Copilot',
   wisdomgate: 'Wisdom Gate',
+  'gemini-cli': 'Gemini CLI',
 };
 
 export const Quotas = () => {
@@ -201,6 +205,8 @@ export const Quotas = () => {
         baseType = 'kimi-code';
       } else if (baseType.includes('wisdomgate')) {
         baseType = 'wisdomgate';
+      } else if (baseType.includes('gemini-cli') || baseType.includes('gemini')) {
+        baseType = 'gemini-cli';
       }
 
       if (!groups[baseType]) {
@@ -332,6 +338,10 @@ export const Quotas = () => {
       return wrapper(<WisdomGateQuotaDisplay result={result} isCollapsed={false} />);
     }
 
+    if (checkerIdentifier.includes('gemini-cli') || checkerIdentifier.includes('gemini')) {
+      return wrapper(<GeminiCliQuotaDisplay result={result} isCollapsed={false} />);
+    }
+
     // Fallback: generic display
     console.warn(`Unknown quota checker type: ${quota.checkerType || quota.checkerId}`);
     return wrapper(<SyntheticQuotaDisplay result={result} isCollapsed={false} />);
@@ -365,7 +375,7 @@ export const Quotas = () => {
   };
 
   return (
-    <div className="min-h-screen p-6 transition-all duration-300 bg-gradient-to-br from-bg-deep to-bg-surface">
+    <div className="min-h-screen p-6 transition-all duration-300 bg-linear-to-br from-bg-deep to-bg-surface">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="font-heading text-3xl font-bold text-text m-0 mb-2">Quota Trackers</h1>

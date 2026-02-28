@@ -205,7 +205,10 @@ export const Logs = () => {
             }
 
             // Handle different event types: started, updated, completed
-            if ((eventType === 'started' || eventType === 'updated' || eventType === 'completed') && eventData) {
+            if (
+              (eventType === 'started' || eventType === 'updated' || eventType === 'completed') &&
+              eventData
+            ) {
               try {
                 const newLog = JSON.parse(eventData);
                 const currentFilters = filtersRef.current;
@@ -405,9 +408,7 @@ export const Logs = () => {
                     style={{
                       height: '86px',
                       backgroundColor:
-                        log.responseStatus === 'pending'
-                          ? 'rgba(234, 179, 8, 0.08)'
-                          : undefined,
+                        log.responseStatus === 'pending' ? 'rgba(234, 179, 8, 0.08)' : undefined,
                     }}
                   >
                     <td className="px-2 py-1.5 text-left border-b border-border-glass text-text align-middle whitespace-nowrap">
@@ -888,8 +889,8 @@ export const Logs = () => {
                               log.responseStatus === 'success'
                                 ? 'text-success border-success/30 bg-emerald-500/15'
                                 : log.responseStatus === 'pending'
-                                ? 'text-warning border-warning/30 bg-yellow-500/15'
-                                : 'text-danger border-danger/30 bg-red-500/15'
+                                  ? 'text-warning border-warning/30 bg-yellow-500/15'
+                                  : 'text-danger border-danger/30 bg-red-500/15'
                             )}
                             style={{ width: '52px' }}
                           >

@@ -147,7 +147,11 @@ export function formatGeminiStream(stream: ReadableStream): ReadableStream {
           };
 
           // Check for signature in the tool call itself (preferred) or fall back to global thinking signature in the chunk
-          const sig = tc.thinking?.signature || tc.thought_signature || chunk.delta?.thinking?.signature || chunk.delta?.thought_signature;
+          const sig =
+            tc.thinking?.signature ||
+            tc.thought_signature ||
+            chunk.delta?.thinking?.signature ||
+            chunk.delta?.thought_signature;
           if (sig) {
             functionCallPart.thoughtSignature = sig;
           }
