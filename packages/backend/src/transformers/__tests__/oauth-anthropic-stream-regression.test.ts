@@ -101,4 +101,28 @@ describe('OAuth -> Anthropic stream regression', () => {
     const chunk = piAiEventToChunk(toolcallEndEvent as any, 'claude-sonnet-4-6', 'anthropic');
     expect(chunk).toBeNull();
   });
+
+  test('piAiEventToChunk uses 0-based sequential indices for tool calls when thinking is present', () => {
+    // Simulate a partial message state from pi-ai where:
+    // Index 0: thinking block
+    // Index 1: toolCall block
+    const event: any = {
+      type: 'toolcall_delta',
+      contentIndex: 1, // The toolCall is the second block in the Anthropic content array
+      delta: '{"cmd": "ls"}',
+      partial: {
+        content: [
+          { type: 'thinking', thinking: 'I should list files' },
+          { type: 'toolCall', id: 'toolu_123', name: 'bash', arguments: {} },
+        ],
+      },
+    };
+
+    const chunk = piAiEventToChunk(event, 'claude-sonnet-4-6', 'anthropic');
+
+    expect(chunk).toBeDefined();
+    expect(chunk?.delta.tool_calls).toBeDefined();
+    expect(chunk?.delta.tool_calls![0].index).toBe(0); // MUST be 0 for OpenAI compatibility, even if it's block 1 in Anthropic
+    expect(chunk?.delta.tool_calls![0].id).toBe('toolu_123');
+  });
 });

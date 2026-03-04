@@ -410,12 +410,19 @@ export function piAiEventToChunk(
         const { callId } = parseToolCallIds((toolCall as any).id);
         const thoughtSignature = (toolCall as any).thoughtSignature;
 
+        // Calculate the correct tool_call index for OpenAI format.
+        // Anthropic content blocks are mixed (text, thinking, toolCall).
+        // OpenAI expects tool_calls to be its own 0-indexed array.
+        const toolCallIndex = (event.partial?.content || [])
+          .slice(0, event.contentIndex)
+          .filter((c: any) => c.type === 'toolCall').length;
+
         return {
           ...baseChunk,
           delta: {
             tool_calls: [
               {
-                index: event.contentIndex,
+                index: toolCallIndex,
                 id: callId || (toolCall as any).id,
                 type: 'function',
                 function: {
