@@ -39,6 +39,11 @@ interface RetryAttemptRecord {
   retryable?: boolean;
 }
 
+interface ParseFailureContext {
+  rawResponseText: string;
+  contentType?: string | null;
+}
+
 export class Dispatcher {
   private usageStorage?: UsageStorageService;
 
@@ -666,7 +671,8 @@ export class Dispatcher {
     retryable?: boolean
   ): void {
     const statusCode = error?.routingContext?.statusCode ?? error?.status ?? error?.statusCode;
-    const providerResponse = error?.routingContext?.providerResponse;
+    const providerResponse =
+      error?.routingContext?.providerResponse ?? error?.routingContext?.rawResponseText;
     const reason = providerResponse
       ? String(providerResponse).slice(0, 500)
       : error?.message || 'Unknown provider error';
@@ -702,6 +708,45 @@ export class Dispatcher {
     };
 
     return enriched;
+  }
+
+  private async parseJsonResponseBody(
+    response: Response,
+    requestId?: string,
+    route?: RouteResult,
+    targetApiType?: string
+  ): Promise<any> {
+    const responseText = await response.text();
+
+    try {
+      return JSON.parse(responseText);
+    } catch (cause) {
+      if (requestId) {
+        DebugManager.getInstance().addRawResponse(requestId, responseText);
+        DebugManager.getInstance().addReconstructedRawResponse(requestId, {
+          parseError: true,
+          rawResponseText: responseText,
+          contentType: response.headers.get('content-type'),
+          provider: route?.provider,
+          targetModel: route?.model,
+          targetApiType,
+        });
+      }
+
+      const error = new Error('JSON Parse error: Unable to parse JSON string') as any;
+      error.cause = cause;
+      error.routingContext = {
+        provider: route?.provider,
+        targetModel: route?.model,
+        targetApiType,
+        statusCode: response.status || 500,
+        rawResponseText: responseText,
+        providerResponse: responseText,
+        contentType: response.headers.get('content-type'),
+      } satisfies ParseFailureContext & Record<string, unknown>;
+
+      throw error;
+    }
   }
 
   setupHeaders(
@@ -1474,7 +1519,12 @@ export class Dispatcher {
     transformer: any,
     bypassTransformation: boolean
   ): Promise<UnifiedChatResponse> {
-    const responseBody = JSON.parse(await response.text());
+    const responseBody = await this.parseJsonResponseBody(
+      response,
+      request.requestId,
+      route,
+      targetApiType
+    );
     logger.silly('Upstream Response Payload', responseBody);
 
     if (request.requestId) {
