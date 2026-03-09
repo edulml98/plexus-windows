@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import Fastify, { FastifyInstance } from 'fastify';
+import { createTestConfig } from '../../../../test/test-utils';
 import { setConfigForTesting } from '../../../config';
 import { registerInferenceRoutes } from '../index';
 import { Dispatcher } from '../../../services/dispatcher';
@@ -68,11 +69,12 @@ describe('Embeddings Endpoint', () => {
     SelectorFactory.setUsageStorage(mockUsageStorage);
 
     // Set config with embeddings models
-    setConfigForTesting({
+    setConfigForTesting(createTestConfig({
       providers: {
         openai: {
           api_key: 'sk-test',
           api_base_url: 'https://api.openai.com/v1',
+          enabled: true,
           estimateTokens: false,
           disable_cooldown: false,
           models: {
@@ -82,23 +84,7 @@ describe('Embeddings Endpoint', () => {
           },
         },
       },
-      models: {
-        'embeddings-small': {
-          priority: 'selector',
-          targets: [{ provider: 'openai', model: 'text-embedding-3-small' }],
-        },
-      },
-      keys: {
-        'test-key-1': { secret: 'sk-valid-key', comment: 'Test Key' },
-      },
-      adminKey: 'admin-secret',
-      failover: {
-        enabled: false,
-        retryableStatusCodes: [429, 500, 502, 503, 504],
-        retryableErrors: ['ECONNREFUSED', 'ETIMEDOUT'],
-      },
-      quotas: [],
-    });
+    }));
 
     await registerInferenceRoutes(fastify, mockDispatcher, mockUsageStorage);
     await fastify.ready();
