@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeAll } from 'bun:test';
 import Fastify, { FastifyInstance } from 'fastify';
+import { createTestConfig } from '../../../../test/test-utils';
 import { setConfigForTesting } from '../../../config';
+// ... replace the config definitions
 import { registerInferenceRoutes } from '../index';
 import { Dispatcher } from '../../../services/dispatcher';
 import { UsageStorageService } from '../../../services/usage-storage';
