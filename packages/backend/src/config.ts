@@ -761,6 +761,7 @@ export const VALID_QUOTA_CHECKER_TYPES = [
   'copilot',
   'wisdomgate',
   'apertis',
+  'apertis-coding-plan',
   'poe',
   'gemini-cli',
   'antigravity',

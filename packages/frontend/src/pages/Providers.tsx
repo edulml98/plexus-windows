@@ -28,6 +28,7 @@ import { WisdomGateQuotaConfig } from '../components/quota/WisdomGateQuotaConfig
 import { GeminiCliQuotaConfig } from '../components/quota/GeminiCliQuotaConfig';
 import { AntigravityQuotaConfig } from '../components/quota/AntigravityQuotaConfig';
 import { ApertisQuotaConfig } from '../components/quota/ApertisQuotaConfig';
+import { ApertisCodingPlanQuotaConfig } from '../components/quota/ApertisCodingPlanQuotaConfig';
 import { KimiCodeQuotaConfig } from '../components/quota/KimiCodeQuotaConfig';
 import { PoeQuotaConfig } from '../components/quota/PoeQuotaConfig';
 
@@ -1740,6 +1741,23 @@ export const Providers = () => {
               {selectedQuotaCheckerType && selectedQuotaCheckerType === 'apertis' && (
                 <div className="mt-3 p-3 border border-border-glass rounded-md bg-bg-subtle">
                   <ApertisQuotaConfig
+                    options={editingProvider.quotaChecker?.options || {}}
+                    onChange={(options) =>
+                      setEditingProvider({
+                        ...editingProvider,
+                        quotaChecker: {
+                          ...editingProvider.quotaChecker,
+                          options,
+                        } as Provider['quotaChecker'],
+                      })
+                    }
+                  />
+                </div>
+              )}
+
+              {selectedQuotaCheckerType && selectedQuotaCheckerType === 'apertis-coding-plan' && (
+                <div className="mt-3 p-3 border border-border-glass rounded-md bg-bg-subtle">
+                  <ApertisCodingPlanQuotaConfig
                     options={editingProvider.quotaChecker?.options || {}}
                     onChange={(options) =>
                       setEditingProvider({
