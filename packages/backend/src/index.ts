@@ -4,6 +4,7 @@ import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 import fs from 'fs';
+import yaml from 'yaml';
 import { logger } from './utils/logger';
 import { getConfig } from './config';
 import { ConfigService } from './services/config-service';
@@ -35,6 +36,90 @@ import { runMigrations } from './db/migrate';
  */
 
 // --- Required Environment Variables ---
+// Check for ADMIN_KEY - if not set, try to read from plexus.yaml for backward compatibility
+export let adminKeyFromYaml: string | undefined = undefined;
+if (!process.env.ADMIN_KEY) {
+  // Try to read adminKey from plexus.yaml for backward compatibility
+  const configLocations = [
+    path.resolve(__dirname, '../../../config/plexus.yaml'),
+    path.resolve(__dirname, '../../config/plexus.yaml'),
+    path.resolve(process.cwd(), 'config/plexus.yaml'),
+    path.resolve(process.cwd(), '../../config/plexus.yaml'),
+  ];
+  const configPath = [
+    ...(process.env.CONFIG_FILE ? [process.env.CONFIG_FILE] : []),
+    ...configLocations,
+  ].find((p) => fs.existsSync(p));
+
+  if (configPath) {
+    try {
+      const yamlContent = fs.readFileSync(configPath, 'utf-8');
+      const parsed = yaml.parse(yamlContent);
+      if (parsed?.adminKey) {
+        adminKeyFromYaml = parsed.adminKey;
+        process.env.ADMIN_KEY = adminKeyFromYaml;
+
+        // Print large ASCII banner warning
+        logger.error('');
+        logger.error(
+          '╔════════════════════════════════════════════════════════════════════════════════╗'
+        );
+        logger.error(
+          '║                                                                                ║'
+        );
+        logger.error(
+          '║   ⚠️  DEPRECATION WARNING: ADMIN_KEY FROM YAML FILE                            ║'
+        );
+        logger.error(
+          '║                                                                                ║'
+        );
+        logger.error(
+          '║   Plexus has migrated to database-backed configuration.                        ║'
+        );
+        logger.error(
+          '║   Your adminKey was read from plexus.yaml for backward compatibility.          ║'
+        );
+        logger.error(
+          '║                                                                                ║'
+        );
+        logger.error(
+          '║   ⚠️  ACTION REQUIRED:                                                         ║'
+        );
+        logger.error(
+          '║   Set ADMIN_KEY as an environment variable before the next restart:            ║'
+        );
+        logger.error(
+          '║                                                                                ║'
+        );
+        logger.error(
+          '║       export ADMIN_KEY="your-admin-key"                                        ║'
+        );
+        logger.error(
+          '║                                                                                ║'
+        );
+        logger.error(
+          '║   Note: The rest of your plexus.yaml configuration has been imported           ║'
+        );
+        logger.error(
+          '║   into the database and will NOT be re-read from the YAML file.                ║'
+        );
+        logger.error(
+          '║   Future changes must be made via the web UI or management API.                ║'
+        );
+        logger.error(
+          '║                                                                                ║'
+        );
+        logger.error(
+          '╚════════════════════════════════════════════════════════════════════════════════╝'
+        );
+        logger.error('');
+      }
+    } catch (e) {
+      // Ignore errors reading YAML file
+    }
+  }
+}
+
 if (!process.env.ADMIN_KEY) {
   logger.error(
     'ADMIN_KEY environment variable is required. Set it to a secure password for admin access.'
@@ -45,8 +130,11 @@ if (!process.env.ADMIN_KEY) {
 if (!process.env.DATABASE_URL) {
   const dataDir = process.env.DATA_DIR || '/app/data';
   process.env.DATABASE_URL = `sqlite://${dataDir}/plexus.db`;
-  logger.info(`DATABASE_URL not set, defaulting to ${process.env.DATABASE_URL}`);
 }
+
+// Log startup configuration
+logger.info(`DATABASE_URL: ${process.env.DATABASE_URL}`);
+logger.info(`PORT: ${process.env.PORT || '4000'}`);
 
 const fastify = Fastify({
   logger: false, // We use a custom winston-based logger

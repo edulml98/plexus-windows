@@ -8,9 +8,22 @@ import {
   McpServerConfigSchema,
 } from '../../config';
 import { ConfigService } from '../../services/config-service';
+import { adminKeyFromYaml } from '../../index';
 
 export async function registerConfigRoutes(fastify: FastifyInstance) {
   const configService = ConfigService.getInstance();
+
+  // ─── Config Status ────────────────────────────────────────────────
+
+  fastify.get('/v0/management/config/status', async (_request, reply) => {
+    try {
+      return reply.send({
+        adminKeyFromYaml: !!adminKeyFromYaml,
+      });
+    } catch (e: any) {
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
 
   // ─── Config Export ────────────────────────────────────────────────
 
