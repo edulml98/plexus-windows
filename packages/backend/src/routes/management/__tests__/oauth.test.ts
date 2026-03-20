@@ -1,9 +1,40 @@
-import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, it, mock } from 'bun:test';
 import Fastify from 'fastify';
 import type { OAuthProviderInterface } from '@mariozechner/pi-ai/oauth';
 import { registerOAuthRoutes } from '../oauth';
 import { OAuthLoginSessionManager } from '../../../services/oauth-login-session';
 import { OAuthAuthManager } from '../../../services/oauth-auth-manager';
+
+mock.module('@mariozechner/pi-ai', () => ({
+  getModels: (provider: string) => {
+    if (provider === 'unknown-provider') {
+      return [];
+    }
+    return [
+      { id: 'claude-opus-4', name: 'Claude Opus 4', contextWindow: 200000, provider: 'anthropic' },
+      {
+        id: 'claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        contextWindow: 200000,
+        provider: 'anthropic',
+      },
+    ];
+  },
+  getModel: (provider: string, modelId: string) => ({
+    id: modelId,
+    name: modelId,
+    contextWindow: 200000,
+    provider,
+  }),
+  complete: async () => ({
+    content: [{ type: 'text', text: 'ok' }],
+    stopReason: 'stop',
+    usage: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+    provider: 'anthropic',
+    model: 'claude-test',
+  }),
+  stream: async () => ({ ok: true }),
+}));
 
 const waitForStatus = async (
   fastify: ReturnType<typeof Fastify>,
