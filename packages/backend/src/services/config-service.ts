@@ -45,6 +45,18 @@ export class ConfigService {
     ConfigService.instance = undefined as any;
   }
 
+  /**
+   * For testing only: inject a config directly into the ConfigService cache,
+   * bypassing DB initialization. This ensures getConfig() reliably returns
+   * the test config regardless of module caching behavior.
+   */
+  static setInstanceForTesting(config: import('../config').PlexusConfig): void {
+    if (!ConfigService.instance) {
+      ConfigService.instance = new ConfigService();
+    }
+    ConfigService.instance.cache = config;
+  }
+
   // ─── Initialization ──────────────────────────────────────────────
 
   /**

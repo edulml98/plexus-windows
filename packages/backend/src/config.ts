@@ -712,11 +712,13 @@ export function getConfig(): PlexusConfig {
 
 export function setConfigForTesting(config: PlexusConfig) {
   currentConfig = config;
-  // Reset ConfigService so getConfig() falls through to currentConfig.
-  // This prevents a stale or DB-loaded cache from shadowing the test config.
+  // Inject the config directly into ConfigService's cache so that getConfig()
+  // reliably returns it via the ConfigService path. Simply resetting the instance
+  // could leave a stale initialized instance (e.g. due to ESM/CJS module cache
+  // divergence on Linux) that shadows currentConfig with a DB-backed config.
   try {
     const { ConfigService } = require('./services/config-service');
-    ConfigService.resetInstance();
+    ConfigService.setInstanceForTesting(config);
   } catch {
     // ConfigService may not be available in all test environments
   }
