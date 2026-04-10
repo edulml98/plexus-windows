@@ -83,9 +83,23 @@ for (const path of loggerPaths) {
 // Initialize database for tests
 import { initializeDatabase } from '../src/db/client';
 import { runMigrations } from '../src/db/migrate';
+import path from 'node:path';
+import fs from 'node:fs';
 
-// Load minimal test config with database section before initializing database
-const testDbUrl = process.env.PLEXUS_TEST_DB_URL || 'sqlite://:memory:';
+// Use a file-based database in CI to avoid in-memory database issues
+// The in-memory database can have issues with worker processes in some environments
+const testDbPath = path.join(process.cwd(), '.test-db.sqlite');
+const testDbUrl = process.env.PLEXUS_TEST_DB_URL || `sqlite://${testDbPath}`;
+
+// Clean up any existing test database before initializing
+try {
+  if (fs.existsSync(testDbPath)) {
+    fs.unlinkSync(testDbPath);
+  }
+} catch {
+  // Ignore cleanup errors
+}
+
 const testConfig = `
 database:
   connection_string: "${testDbUrl}"
