@@ -1,10 +1,23 @@
-import { expect, test, describe, beforeEach, spyOn, mock } from 'bun:test';
+import { expect, test, describe, beforeEach, afterEach, spyOn, mock } from 'bun:test';
 import { Dispatcher } from '../src/services/dispatcher';
 import { VisionDescriptorService } from '../src/services/vision-descriptor-service';
 import { Router } from '../src/services/router';
 import * as configModule from '../src/config';
 
 describe('Vision Fallthrough E2E', () => {
+  // Store the original config to restore after tests
+  let originalConfig: any;
+
+  beforeEach(() => {
+    // Store original config (from setup.ts default)
+    originalConfig = configModule.getConfig();
+  });
+
+  afterEach(() => {
+    // Restore original config to prevent pollution of other tests
+    configModule.setConfigForTesting(originalConfig);
+  });
+
   test('Dispatcher triggers vision fallthrough when enabled', async () => {
     // 1. Mock the config to enable fallthrough for an alias
     const mockConfig = {
