@@ -55,3 +55,4 @@ research_and_plans/
 packages/logs.txt
 .vscode/mcp.json
 .pi/readcache/
+packages/backend/.test-db.sqlite-shm
