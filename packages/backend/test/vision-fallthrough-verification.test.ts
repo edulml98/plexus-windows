@@ -1,8 +1,12 @@
-import { expect, test, describe, spyOn } from 'bun:test';
+import { expect, test, describe, spyOn, afterEach } from 'bun:test';
 import { VisionDescriptorService } from '../src/services/vision-descriptor-service';
 import { UnifiedMessage, UnifiedChatRequest, TextContent } from '../src/types/unified';
 
 describe('VisionDescriptorService Detailed Verification', () => {
+  afterEach(() => {
+    // Restore all spies to prevent polluting other tests
+    VisionDescriptorService.describeImage.mockRestore?.();
+  });
   test('injectDescriptions correctly replaces images with text', () => {
     const messages: UnifiedMessage[] = [
       {
