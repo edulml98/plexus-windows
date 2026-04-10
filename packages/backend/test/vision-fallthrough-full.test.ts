@@ -1,9 +1,14 @@
-import { expect, test, describe, spyOn } from 'bun:test';
+import { expect, test, describe, spyOn, afterEach } from 'bun:test';
 import { Dispatcher } from '../src/services/dispatcher';
 import { VisionDescriptorService } from '../src/services/vision-descriptor-service';
 import * as configModule from '../src/config';
 
 describe('Vision Fallthrough Full Logic', () => {
+  afterEach(() => {
+    // Restore getConfig spy to prevent polluting other tests
+    configModule.getConfig.mockRestore?.();
+  });
+
   test('triggers for MiniMax-M2.5 with image payload', async () => {
     const mockConfig = {
       providers: {
@@ -64,8 +69,5 @@ describe('Vision Fallthrough Full Logic', () => {
 
     await dispatcher.dispatch(payload as any);
     expect(processSpy).toHaveBeenCalled();
-
-    // Restore to prevent spy from leaking into other test files running in the same worker
-    processSpy.mockRestore();
   });
 });
