@@ -102,14 +102,16 @@ export class SyntheticQuotaChecker extends QuotaChecker {
           const num = parseFloat(val.replace('$', ''));
           return isNaN(num) ? undefined : num;
         };
+        const parsedMax = parseCredits(maxCredits);
+        const parsedRemaining = parseCredits(remainingCredits);
         windows.push(
           this.createWindow(
             'rolling_weekly',
-            parseCredits(maxCredits),
-            parseCredits(maxCredits) !== undefined && parseCredits(remainingCredits) !== undefined
-              ? parseCredits(maxCredits)! - parseCredits(remainingCredits)!
+            parsedMax,
+            parsedMax !== undefined && parsedRemaining !== undefined
+              ? parsedMax - parsedRemaining
               : undefined,
-            parseCredits(remainingCredits),
+            parsedRemaining,
             'dollars',
             nextRegenAt ? new Date(nextRegenAt) : undefined,
             'Weekly token credits'

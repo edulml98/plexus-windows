@@ -2,18 +2,32 @@ import React from 'react';
 import { clsx } from 'clsx';
 import { Zap, AlertTriangle, CheckCircle2, Wallet } from 'lucide-react';
 import { formatDuration, formatCost } from '../../lib/format';
-import type { QuotaCheckResult, QuotaWindow } from '../../types/quota';
+import type { QuotaCheckResult, QuotaStatus, QuotaWindow } from '../../types/quota';
 
 interface SyntheticQuotaDisplayProps {
   result: QuotaCheckResult;
   isCollapsed: boolean;
 }
 
+const STATUS_BAR_COLOR: Record<QuotaStatus, string> = {
+  ok: 'bg-success',
+  warning: 'bg-warning',
+  critical: 'bg-danger',
+  exhausted: 'bg-danger',
+};
+
+const STATUS_TEXT_COLOR: Record<QuotaStatus, string> = {
+  ok: 'text-success',
+  warning: 'text-warning',
+  critical: 'text-danger',
+  exhausted: 'text-danger',
+};
+
 interface ProgressBarProps {
   window: QuotaWindow;
   label: string;
-  barColor: string;
-  textColor: string;
+  defaultBarColor: string;
+  defaultTextColor: string;
   infoText?: string;
   dollarCost?: number;
   dollarLimit?: number;
@@ -24,14 +38,16 @@ interface ProgressBarProps {
 const ProgressBar: React.FC<ProgressBarProps> = ({
   window,
   label,
-  barColor,
-  textColor,
+  defaultBarColor,
+  defaultTextColor,
   infoText,
   dollarCost,
   dollarLimit,
   showWalletIcon,
   showDollarUsedLabel,
 }) => {
+  const barColor = window.status ? STATUS_BAR_COLOR[window.status] : defaultBarColor;
+  const textColor = window.status ? STATUS_TEXT_COLOR[window.status] : defaultTextColor;
   if (!window.limit) return null;
 
   return (
@@ -145,8 +161,8 @@ export const SyntheticQuotaDisplay: React.FC<SyntheticQuotaDisplayProps> = ({
         <ProgressBar
           window={weeklyWindow}
           label="Weekly"
-          barColor="bg-info"
-          textColor="text-info"
+          defaultBarColor="bg-info"
+          defaultTextColor="text-info"
           dollarCost={weeklyWindow.used}
           dollarLimit={weeklyWindow.limit}
           showWalletIcon
@@ -158,8 +174,8 @@ export const SyntheticQuotaDisplay: React.FC<SyntheticQuotaDisplayProps> = ({
         <ProgressBar
           window={fiveHourWindow}
           label="5h"
-          barColor="bg-emerald-400"
-          textColor="text-emerald-400"
+          defaultBarColor="bg-emerald-400"
+          defaultTextColor="text-emerald-400"
           infoText={fiveHourInfo}
         />
       )}
@@ -168,8 +184,8 @@ export const SyntheticQuotaDisplay: React.FC<SyntheticQuotaDisplayProps> = ({
         <ProgressBar
           window={searchWindow}
           label="Search"
-          barColor="bg-violet-400"
-          textColor="text-violet-400"
+          defaultBarColor="bg-violet-400"
+          defaultTextColor="text-violet-400"
           infoText={searchInfo}
         />
       )}
