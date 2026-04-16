@@ -1,10 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type { ModelConfig } from '../../config';
 import type { UnifiedChatRequest } from '../../types/unified';
-import {
-  ContextLengthExceededError,
-  enforceContextLimit,
-} from '../enforce-limits';
+import { ContextLengthExceededError, enforceContextLimit } from '../enforce-limits';
 import { ModelMetadataManager } from '../model-metadata-manager';
 
 function makeRequest(overrides: Partial<UnifiedChatRequest> = {}): UnifiedChatRequest {
@@ -134,9 +131,9 @@ describe('enforceContextLimit', () => {
       originalBody: { messages: msgs },
     });
     // With max_completion_tokens=8000 reservation: 6600 + 8000 = 14600 > 10000 → reject
-    expect(() =>
-      enforceContextLimit(withMetadataReservation, config, 'test-alias')
-    ).toThrow(ContextLengthExceededError);
+    expect(() => enforceContextLimit(withMetadataReservation, config, 'test-alias')).toThrow(
+      ContextLengthExceededError
+    );
 
     // Same input, but caller requested max_tokens=10 → reservation becomes 10 → 6600 + 10 < 10000 → pass
     const withSmallMaxTokens = makeRequest({
