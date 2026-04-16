@@ -253,6 +253,13 @@
       "when": 1776319523191,
       "tag": "0035_crazy_mindworm",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1776372435462,
+      "tag": "0036_serious_captain_stacy",
+      "breakpoints": true
     }
   ]
 }
