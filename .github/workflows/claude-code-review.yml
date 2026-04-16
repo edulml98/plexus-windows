@@ -77,9 +77,17 @@ jobs:
                 ]
               }
             }
-          plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
-          plugins: 'code-review@claude-code-plugins'
-          prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          # NOTE: The code-review plugin has a known bug (#1087) where it completes the review
+          # but produces an empty result, posting nothing to the PR. Using a direct prompt instead.
+          prompt: |
+            Review the pull request ${{ github.repository }}/pull/${{ github.event.pull_request.number }}.
+
+            1. Read the PR diff using `git diff` and understand the changes.
+            2. Analyze the code for bugs, security issues, performance problems, and style concerns.
+            3. Post inline comments on specific lines using mcp__github_inline_comment__create_inline_comment with confirmed: true.
+            4. Post a summary review comment on the PR using `gh pr comment`.
+
+            Be thorough but concise. Focus on actionable issues, not nitpicks.
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
 
