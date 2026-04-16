@@ -11,7 +11,15 @@ on:
       - 'packages/**/*.json'
       - '*.yaml'
       - '*.yml'
+      # Schema changes are handled by generate-migrations.yml, which triggers
+      # this workflow via workflow_dispatch after migrations are committed.
+      - '!packages/backend/drizzle/schema/**'
   workflow_dispatch:
+    inputs:
+      sha:
+        description: 'Commit SHA to build (used when triggered after migration generation)'
+        required: false
+        type: string
 
 jobs:
   dev-release:
@@ -23,8 +31,19 @@ jobs:
       packages: write
 
     steps:
+      - name: Determine commit SHA
+        id: sha
+        run: |
+          if [ -n "${{ inputs.sha }}" ]; then
+            echo "sha=${{ inputs.sha }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "sha=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
 
       - name: Set up Bun
         uses: oven-sh/setup-bun@v2
@@ -48,7 +67,7 @@ jobs:
         # Note: Each compile script in package.json runs build:frontend.
         # This is acceptable for correctness to ensure each binary is built with the latest assets.
         env:
-          APP_VERSION: dev-${{ github.sha }}
+          APP_VERSION: dev-${{ steps.sha.outputs.sha }}
         run: |
           bun run compile:linux
           bun run compile:macos
@@ -77,7 +96,7 @@ jobs:
           tags: ghcr.io/${{ github.repository }}:dev
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
-            APP_VERSION=dev-${{ github.sha }}
+            APP_VERSION=dev-${{ steps.sha.outputs.sha }}
 
       - name: Create dev pre-release
         uses: softprops/action-gh-release@v2
@@ -88,8 +107,8 @@ jobs:
             plexus.exe
           draft: false
           prerelease: true
-          tag_name: dev-${{ github.sha }}
+          tag_name: dev-${{ steps.sha.outputs.sha }}
           body: |
-            Development pre-release from commit ${{ github.sha }}
+            Development pre-release from commit ${{ steps.sha.outputs.sha }}
 
-            Built from: `${{ github.ref }}` at `${{ github.sha }}`
+            Built from: `main` at `${{ steps.sha.outputs.sha }}`
