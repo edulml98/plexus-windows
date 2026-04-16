@@ -27,6 +27,32 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Check for pending migrations
+        working-directory: packages/backend
+        run: |
+          # Run drizzle-kit generate in dry-run mode to detect schema drift.
+          # If any migration files are produced, the schema has changed since
+          # the last migration was committed — the release must wait for the
+          # generate-migrations workflow to catch up.
+          bunx drizzle-kit generate 2>&1 | tee /tmp/sqlite-migrate.log
+          bunx drizzle-kit generate --config drizzle.config.pg.ts 2>&1 | tee /tmp/pg-migrate.log
+
+          if git diff --quiet && [ -z "$(git ls-files --others --exclude-standard drizzle/migrations drizzle/migrations_pg)" ]; then
+            echo "✅ No pending migrations — all schema changes have corresponding migration files."
+          else
+            echo "::error::Pending migrations detected! The schema has changed but migration files have not been generated yet."
+            echo ""
+            echo "This usually means the generate-migrations workflow has not finished running on main."
+            echo "Wait for it to complete and merge, then re-tag the release."
+            echo ""
+            echo "Uncommitted migration files:"
+            git ls-files --others --exclude-standard drizzle/migrations drizzle/migrations_pg
+            echo ""
+            echo "Modified migration files:"
+            git diff --name-only
+            exit 1
+          fi
+
       - name: Compile Binaries
         # compiling each platform separately
         # Note: Each compile script in package.json runs build:frontend. 
