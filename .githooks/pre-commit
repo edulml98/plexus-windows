@@ -46,6 +46,13 @@ if [ -n "$staged_files" ]; then
   echo "$staged_files" | xargs git add
 fi
 
+# --- Build frontend (catches invalid imports, missing exports, broken builds) ---
+frontend_files=$(git diff --cached --name-only --diff-filter=ACM -- 'packages/frontend/src/**' || true)
+if [ -n "$frontend_files" ]; then
+  echo "[pre-commit] Frontend files changed — running build:frontend..."
+  bun run build:frontend
+fi
+
 echo "[pre-commit] Running backend tests..."
 cd packages/backend
 bun test

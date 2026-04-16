@@ -10,7 +10,6 @@ import {
   Terminal,
   Cpu,
   Shield,
-  Github,
   Code2,
   Sparkles,
   AlertTriangle,
@@ -149,7 +148,7 @@ const getCheckerIcon = (category: string) => {
     case 'kimi':
       return <Sparkles className={iconClass} />;
     case 'copilot':
-      return <Github className={iconClass} />;
+      return <Bot className={iconClass} />;
     case 'gemini-cli':
       return <Sparkles className={iconClass} />;
     case 'poe':
