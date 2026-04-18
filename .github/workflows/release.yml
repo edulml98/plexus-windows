@@ -232,6 +232,8 @@ jobs:
           anthropic_api_key: ${{ secrets.PLEXUS_API_KEY }}
           github_token: ${{ github.token }}
           show_full_output: true
+          # Allow github-actions bot since this workflow is triggered by release-trigger.yml
+          allowed_bots: 'github-actions'
           prompt: |
             You are a technical writer creating release notes for a software project called Plexus, an LLM API gateway.
 
