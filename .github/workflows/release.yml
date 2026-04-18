@@ -2,15 +2,16 @@ name: Release
 run-name: Release ${{ inputs.version || github.ref_name }}
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
     inputs:
       version:
         description: 'Version tag to release (e.g. v1.2.3)'
         required: true
         type: string
+
+# NOTE: claude-code-action does not support the 'push' event type.
+# To auto-trigger on tag push, use the release-trigger.yml bridge workflow
+# which converts tag pushes into workflow_dispatch calls.
 
 jobs:
   build-and-release:
