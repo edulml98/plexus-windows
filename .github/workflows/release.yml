@@ -6,9 +6,7 @@ on:
     tags:
       - '[0-9][0-9][0-9][0-9].[0-9][0-9].[0-9][0-9].[0-9]+'  # CalVer: YYYY.MM.DD.N
 
-# NOTE: This workflow now uses our forked claude-code-action which supports
-# the 'push' event. Previously, we needed release-trigger.yml to convert
-# tag pushes to workflow_dispatch events due to upstream's event restrictions.
+# NOTE: This workflow uses pi-coding-agent-action for release notes generation.
 
 jobs:
   build-and-release:
@@ -255,22 +253,24 @@ jobs:
           PLEXUS_API_KEY: ${{ secrets.PLEXUS_API_KEY }}
           PLEXUS_BASE_URL: ${{ secrets.PLEXUS_BASE_URL }}
 
-      - name: Generate Release Notes with Claude
+      - name: Generate Release Notes with Pi
         id: release_notes
         timeout-minutes: 5
-        uses: mcowger/claude-code-expanded@main
+        uses: shaftoe/pi-coding-agent-action@v2
         env:
-          ANTHROPIC_BASE_URL: ${{ secrets.PLEXUS_BASE_URL }}
-          ANTHROPIC_API_KEY: ${{ secrets.PLEXUS_API_KEY }}
-          ANTHROPIC_SMALL_FAST_MODEL: ${{ vars.PLEXUS_SMALL_MODEL }}
-          ANTHROPIC_DEFAULT_SONNET_MODEL: ${{ vars.PLEXUS_MODEL }}
-          ANTHROPIC_DEFAULT_HAIKU_MODEL: ${{ vars.PLEXUS_SMALL_MODEL }}
-          ANTHROPIC_DEFAULT_OPUS_MODEL: ${{ vars.PLEXUS_MODEL }}
+          PI_BASE_URL: ${{ secrets.PLEXUS_BASE_URL }}
+          PI_API_KEY: ${{ secrets.PLEXUS_API_KEY }}
+          PI_PROVIDER_NAME: plexus-custom
+          PI_MODEL_ID: ${{ vars.PLEXUS_MODEL }}
+          PI_MODEL_NAME: ${{ vars.PLEXUS_MODEL }}
         with:
-          anthropic_api_key: ${{ secrets.PLEXUS_API_KEY }}
-          github_token: ${{ github.token }}
-          show_full_output: true
-          exclude_co_authored_by: 'true'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          provider: plexus-custom
+          model: ${{ vars.PLEXUS_MODEL }}
+          token: ${{ secrets.PLEXUS_API_KEY }}
+          thinking_level: medium
+          extensions: |
+            git:github.com/mcowger/pi-env-var-provider
           prompt: |
             You are a technical writer creating release notes for a software project called Plexus, an LLM API gateway.
 
@@ -292,36 +292,17 @@ jobs:
             ### Added / Changed / Fixed / Security
             [Categorized bullets with PR references]
 
-          claude_args: |
-            --model ${{ vars.PLEXUS_MODEL }}
-            --allowedTools "Bash(git:*)",Read
-
-      - name: Debug claude-code-action outputs
+      - name: Debug release notes outputs
         if: always()
         run: |
           echo "release_notes outcome: ${{ steps.release_notes.outcome }}"
-          echo "execution_file: ${{ steps.release_notes.outputs.execution_file }}"
 
-      - name: Extract release notes text
+      # Note: The Pi action posts results as comments, which doesn't work on tag pushes
+      # (no issue/PR context). Using raw summary for release body.
+      - name: Set release notes fallback
         id: extract_notes
-        if: steps.release_notes.outcome == 'success'
-        uses: actions/github-script@v9
-        with:
-          result-encoding: string
-          script: |
-            const executionFilePath = '${{ steps.release_notes.outputs.execution_file }}';
-            if (!executionFilePath) {
-              core.warning('No execution_file output');
-              return '';
-            }
-            const fs = require('fs');
-            if (!fs.existsSync(executionFilePath)) {
-              core.warning('Execution file not found: ' + executionFilePath);
-              return '';
-            }
-            const executionLog = JSON.parse(fs.readFileSync(executionFilePath, 'utf8'));
-            const result = executionLog[executionLog.length - 1].result;
-            return result || '';
+        run: |
+          echo "result=${{ steps.pr_info.outputs.pr_summary }}" >> "$GITHUB_OUTPUT"
 
       - name: Create Release
         uses: softprops/action-gh-release@v3
