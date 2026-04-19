@@ -115,6 +115,9 @@ jobs:
 
             Be thorough but concise. Focus on actionable issues, not nitpicks.
 
+            At the end of your review comment, include exactly this line and nothing else:
+            "🤖 Automated review"
+
       - name: Update check run result
         if: always()
         uses: actions/github-script@v9
