@@ -25,6 +25,14 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Register secrets for masking
+        uses: actions/github-script@v9
+        with:
+          script: |
+            core.setSecret(process.env.PI_MODELS_JSON)
+        env:
+          PI_MODELS_JSON: ${{ secrets.PI_MODELS_JSON }}
+
       - name: Run pi-action
         uses: mcowger/pi-action@main
         with:
