@@ -10,8 +10,8 @@ concurrency:
 
 jobs:
   review:
-    # Skip draft PRs
-    if: github.event.pull_request.draft == false
+    # Skip draft PRs and PRs without a body
+    if: github.event.pull_request.draft == false && github.event.pull_request.body != ''
     runs-on: ubuntu-latest
     permissions:
       contents: read
