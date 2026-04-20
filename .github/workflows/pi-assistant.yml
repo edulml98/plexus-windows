@@ -94,7 +94,6 @@ jobs:
           model: ${{ vars.PLEXUS_MODEL }}
           pi_models_json: ${{ secrets.PI_MODELS_JSON }}
           share_session: true
-          prompt_template_file: '.github/pi-prompts/default-main.md'
           suppress_final_comment: true
           branch_mode: ${{ steps.detect-context.outputs.mode }}
 
