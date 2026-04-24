@@ -29,14 +29,17 @@ jobs:
         run: |
           CURRENT_TAG="${{ inputs.tag }}"
           CURRENT_SHA=$(git rev-parse "${CURRENT_TAG}^{}")
+          CURRENT_DATE=$(git log -1 --format=%ci "${CURRENT_SHA}")
 
-          # Find the previous tag that is an actual ancestor
+          # Find the chronologically previous tag (most recent created before current)
           PREV_TAG=""
-          for tag in $(git tag --sort=-version:refname --list "[0-9]*.[0-9]*.[0-9]*.[0-9]*" "v*.*.*" 2>/dev/null); do
+          for tag in $(git tag --sort=-creatordate --list "[0-9]*.[0-9]*.[0-9]*.[0-9]*" "v*.*.*" 2>/dev/null); do
             if [ "$tag" = "$CURRENT_TAG" ]; then continue; fi
             tag_sha=$(git rev-parse "${tag}^{}" 2>/dev/null || true)
             [ -z "$tag_sha" ] && continue
-            if git merge-base --is-ancestor "$tag_sha" "$CURRENT_SHA" 2>/dev/null; then
+            tag_date=$(git log -1 --format=%ci "${tag_sha}")
+            # Stop at the first tag whose commit is strictly older than current
+            if [ "$tag_date" '<' "$CURRENT_DATE" ]; then
               PREV_TAG="$tag"
               break
             fi
@@ -46,6 +49,9 @@ jobs:
           echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
           echo "current_tag=$CURRENT_TAG" >> "$GITHUB_OUTPUT"
           echo "current_sha=$CURRENT_SHA" >> "$GITHUB_OUTPUT"
+          if [ -n "$PREV_TAG" ]; then
+            echo "prev_sha=$(git rev-parse "${PREV_TAG}^{}")" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Gather PR and commit info between tags
         id: pr_info
@@ -60,7 +66,9 @@ jobs:
             const { execSync } = require('child_process');
             let commits;
             try {
-              commits = execSync(`git log ${prevTag}..${currentTag} --pretty=format:'%H'`, { encoding: 'utf8' }).trim().split('\n');
+              const prevDate = execSync(`git log -1 --format=%ci '${prevTag}'`, { encoding: 'utf8' }).trim();
+              const currentDate = execSync(`git log -1 --format=%ci '${currentTag}'`, { encoding: 'utf8' }).trim();
+              commits = execSync(`git log --since='${prevDate}' --until='${currentDate}' --pretty=format:'%H'`, { encoding: 'utf8' }).trim().split('\n');
             } catch (e) {
               commits = [];
             }
