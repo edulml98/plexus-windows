@@ -53,16 +53,15 @@ Enable **Vision Fallthrough** for any model alias directly in the **Admin UI** u
 
 ## Quick Start
 
-`DATABASE_URL` is required and tells Plexus where to store usage data. Use a local SQLite file for simple deployments, or a PostgreSQL connection string for production.
-`ADMIN_KEY` is required and specifies the administrative key.
+`ADMIN_KEY` is required and specifies the administrative password for the dashboard and management API.
+`DATABASE_URL` is optional — defaults to a local SQLite database at `./data/plexus.db`. Set it to a PostgreSQL connection string for production.
 
 ### Option A — Docker
 
 ```bash
 docker run -p 4000:4000 \
-  -v $(pwd)/config/plexus.yaml:/app/config/plexus.yaml \
   -v plexus-data:/app/data \
-  -e DATABASE_URL=sqlite:///app/data/plexus.db \
+  -e ADMIN_KEY="your-admin-password" \
   -e ENCRYPTION_KEY="your-generated-hex-key" \
   ghcr.io/mcowger/plexus:latest
 ```
@@ -75,18 +74,18 @@ Download the latest pre-built binary from [GitHub Releases](https://github.com/m
 # macOS (Apple Silicon)
 curl -L https://github.com/mcowger/plexus/releases/latest/download/plexus-macos -o plexus
 chmod +x plexus
-DATABASE_URL=sqlite://./data/plexus.db ./plexus
+ADMIN_KEY="your-admin-password" ./plexus
 
 # Linux (x64)
 curl -L https://github.com/mcowger/plexus/releases/latest/download/plexus-linux -o plexus
 chmod +x plexus
-DATABASE_URL=sqlite://./data/plexus.db ./plexus
+ADMIN_KEY="your-admin-password" ./plexus
 
 # Windows (x64) — download plexus.exe from the releases page, then:
-# set DATABASE_URL=sqlite://./data/plexus.db && plexus.exe
+# set ADMIN_KEY=your-admin-password && plexus.exe
 ```
 
-The binary is self-contained (no runtime or external dependencies required — database migration files are embedded inside the binary). By default it looks for `config/plexus.yaml` relative to the working directory.
+The binary is self-contained — no runtime or external dependencies required. Database migration files and the web dashboard are embedded inside the binary.
 
 ### Test it
 
