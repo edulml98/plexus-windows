@@ -1,4 +1,4 @@
-import { spawn } from 'bun';
+import { Octokit } from 'octokit';
 import { createInterface } from 'node:readline';
 
 const rl = createInterface({
@@ -15,17 +15,6 @@ const ask = (query: string, defaultVal?: string): Promise<string> => {
     });
   });
 };
-
-async function run(cmd: string[]) {
-  const proc = spawn(cmd, { stdout: 'pipe', stderr: 'pipe' });
-  const text = await new Response(proc.stdout).text();
-  const err = await new Response(proc.stderr).text();
-  const exitCode = await proc.exited;
-  if (exitCode !== 0) {
-    throw new Error(`Command failed: ${cmd.join(' ')}\n${err}`);
-  }
-  return text.trim();
-}
 
 interface CalVerTag {
   year: number;
@@ -66,36 +55,28 @@ async function main() {
   console.log('\n🚀 Plexus Release Process');
   console.log('--------------------------\n');
 
-  // 0. Check if we need to pull
-  try {
-    console.log('🔍 Checking remote for updates...');
-    await run(['git', 'fetch', 'origin']);
-    const branch = (await run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])).trim();
-    if (branch) {
-      const ahead = (await run(['git', 'rev-list', '--count', `HEAD..origin/${branch}`])).trim();
-      if (parseInt(ahead) > 0) {
-        console.log(`⚠️  Local branch is ${ahead} commit(s) behind origin/${branch}.`);
-        console.log('   Run `git pull` and then re-run this script.');
-        process.exit(1);
-      }
-      const behind = (await run(['git', 'rev-list', '--count', `origin/${branch}..HEAD`])).trim();
-      if (parseInt(behind) > 0) {
-        console.log(`ℹ️  Local branch is ${behind} commit(s) ahead of origin/${branch}.`);
-      } else {
-        console.log('✅ Local is up to date with remote.\n');
-      }
-    }
-  } catch (e) {
-    console.log('⚠️  Could not check remote status, continuing anyway...\n');
+  // Get GitHub token
+  const token = process.env.GITHUB_TOKEN;
+  if (!token) {
+    console.error('GITHUB_TOKEN environment variable is required');
+    process.exit(1);
   }
 
-  // 1. Get current version tags
+  const octokit = new Octokit({ auth: token });
+  const owner = 'mcowger';
+  const repo = 'plexus';
+
+  // 1. Get current version tags via GitHub API
   let currentTag: CalVerTag | null = null;
   try {
-    const tags = await run(['git', 'tag', '--list']);
+    const { data: tags } = await octokit.request('GET /repos/{owner}/{repo}/tags', {
+      owner,
+      repo,
+      per_page: 100,
+    });
+
     const calverTags = tags
-      .split('\n')
-      .map((t) => parseCalVer(t))
+      .map((t) => parseCalVer(t.name))
       .filter((t): t is CalVerTag => t !== null);
 
     if (calverTags.length > 0) {
@@ -109,7 +90,7 @@ async function main() {
       currentTag = calverTags[0]!;
     }
   } catch (e) {
-    // No tags found, start fresh
+    console.log('Could not fetch tags, starting fresh...\n');
   }
 
   // Calculate next version
@@ -141,18 +122,31 @@ async function main() {
 
   rl.close();
 
-  // 3. Git Operations - tag and push
-  console.log('\n📦 Performing Git operations...');
+  // 3. GitHub API - create tag on main
+  console.log('\n📦 Creating tag on remote main...');
   try {
-    await run(['git', 'tag', version]);
-    console.log(`✅ Tagged ${version}`);
+    // Get the latest commit SHA on main
+    const { data: ref } = await octokit.request('GET /repos/{owner}/{repo}/git/ref/{ref}', {
+      owner,
+      repo,
+      ref: 'heads/main',
+    });
 
-    console.log('⬆️  Pushing tag...');
-    await run(['git', 'push', 'origin', version]);
-    console.log(`✅ Pushed tag ${version}\n`);
+    const mainSha = ref.object.sha;
+    console.log(`📌 Target commit: ${mainSha.slice(0, 7)}`);
+
+    // Create the tag on the remote
+    await octokit.request('POST /repos/{owner}/{repo}/git/refs', {
+      owner,
+      repo,
+      ref: `refs/tags/${version}`,
+      sha: mainSha,
+    });
+
+    console.log(`✅ Created tag ${version} at origin/main\n`);
     console.log('🎊 Release tag created! GitHub Actions will handle the rest.\n');
   } catch (e) {
-    console.error('\n❌ Git operation failed:', e);
+    console.error('\n❌ GitHub API operation failed:', e);
     process.exit(1);
   }
 }
