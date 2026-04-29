@@ -81,6 +81,11 @@ if [ -n "$frontend_files" ]; then
   bun run build:frontend
 fi
 
-echo "[pre-commit] Running backend tests..."
-cd packages/backend
-bun run test
+backend_files=$(git diff --cached --name-only --diff-filter=ACM -- 'packages/backend/src/**' || true)
+if [ -n "$backend_files" ]; then
+  echo "[pre-commit] Backend files changed — running tests..."
+  cd packages/backend
+  bun run test
+else
+  echo "[pre-commit] No backend files changed — skipping tests"
+fi
