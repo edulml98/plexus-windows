@@ -32,12 +32,16 @@ export const Modal: React.FC<ModalProps> = ({
     return () => document.removeEventListener('keydown', handleEsc);
   }, [isOpen, onClose]);
 
+  const handleBackdropClick = () => {
+    // Don't close when clicking on the backdrop
+  };
+
   if (!isOpen) return null;
 
   return createPortal(
     <div
       className="fixed inset-0 z-modal flex items-center justify-center p-4 sm:p-5 bg-black/70 backdrop-blur-md animate-[fadeIn_0.2s_ease]"
-      onClick={onClose}
+      onClick={handleBackdropClick}
       role="dialog"
       aria-modal="true"
       aria-label={title}
