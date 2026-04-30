@@ -4,6 +4,7 @@
   "devDependencies": {
     "@biomejs/biome": "latest",
     "@redocly/cli": "^2.30.1",
+    "agent-browser": "^0.26.0",
     "bun-types": "latest",
     "octokit": "^5.0.5",
     "pi-agent-browser-native": "latest",
@@ -24,6 +25,8 @@
     "test": "cd packages/backend && bun run test",
     "test:watch": "cd packages/backend && bun run test:watch",
     "release": "bun run scripts/release.ts",
+    "populate-dev": "bun run scripts/populate-dev.ts",
+    "clear-dev": "bun run scripts/clear-dev.ts",
     "prepare": "git rev-parse --git-dir >/dev/null 2>&1 && git config core.hooksPath .githooks || true",
     "setup:hooks": "bash scripts/setup-git-hooks.sh",
     "format": "bunx biome format --write .",
