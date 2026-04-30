@@ -36,7 +36,7 @@ export default defineChecker({
       'https://api.apertis.ai/v1/dashboard/billing/credits'
     );
 
-    logger.silly(`[apertis] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
@@ -87,7 +87,7 @@ export default defineChecker({
       );
     }
 
-    logger.debug(`[apertis] Returning ${meters.length} meters`);
+    logger.debug(`Returning ${meters.length} meters`);
     return meters;
   },
 });

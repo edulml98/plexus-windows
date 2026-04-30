@@ -210,7 +210,7 @@ export class HuggingFaceModelFetcher {
     // Fall back to proprietary model heuristics
     const heuristic = this.matchHeuristic(modelId);
     if (heuristic) {
-      logger.debug(`[HuggingFaceModelFetcher] Using heuristic for ${modelId}`);
+      logger.debug(`Using heuristic for ${modelId}`);
       return { source: 'heuristic', heuristic };
     }
 
@@ -229,7 +229,7 @@ export class HuggingFaceModelFetcher {
     try {
       // Fetch the HF API endpoint for safetensors parameter info
       const apiUrl = `https://huggingface.co/api/models/${modelId}`;
-      logger.debug(`[HuggingFaceModelFetcher] Fetching API data from ${apiUrl}`);
+      logger.debug(`Fetching API data from ${apiUrl}`);
 
       const apiResponse = await fetch(apiUrl, {
         method: 'GET',
@@ -263,7 +263,7 @@ export class HuggingFaceModelFetcher {
 
       // Fetch config.json for architecture details
       const configUrl = `https://huggingface.co/${modelId}/resolve/main/config.json`;
-      logger.debug(`[HuggingFaceModelFetcher] Fetching config from ${configUrl}`);
+      logger.debug(`Fetching config from ${configUrl}`);
 
       const configResponse = await fetch(configUrl, {
         method: 'GET',
@@ -274,18 +274,18 @@ export class HuggingFaceModelFetcher {
       if (configResponse.ok) {
         config = await configResponse.json();
       } else {
-        logger.debug(`[HuggingFaceModelFetcher] Config not found: ${configResponse.status}`);
+        logger.debug(`Config not found: ${configResponse.status}`);
       }
 
       // Return whatever we got — even partial data (safetensors-only) is useful
       if (safetensorsParams || config) {
-        logger.info(`[HuggingFaceModelFetcher] Fetched data for ${modelId}`);
+        logger.debug(`Fetched data for ${modelId}`);
         return { source: 'huggingface', safetensorsParams, totalParams, config };
       }
 
       return null;
     } catch (error) {
-      logger.debug(`[HuggingFaceModelFetcher] Error fetching model data: ${error}`);
+      logger.debug(`Error fetching model data: ${error}`);
       return null;
     }
   }

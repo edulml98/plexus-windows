@@ -36,16 +36,21 @@ interface CloudCodeQuotaResponse {
   models?: Record<string, CloudCodeModelEntry>;
 }
 
-async function resolveCredentials(
-  ctx: { getOption<T>(key: string, def: T): T; checkerId: string }
-): Promise<{ token: string; projectId?: string }> {
+async function resolveCredentials(ctx: {
+  getOption<T>(key: string, def: T): T;
+  checkerId: string;
+}): Promise<{ token: string; projectId?: string }> {
   const configuredApiKey = ctx.getOption<string>('apiKey', '').trim();
   if (configuredApiKey) {
     if (configuredApiKey.startsWith('{')) {
       try {
         const parsed = JSON.parse(configuredApiKey) as {
-          token?: string; accessToken?: string; access?: string; key?: string;
-          projectId?: string; project?: string;
+          token?: string;
+          accessToken?: string;
+          access?: string;
+          key?: string;
+          projectId?: string;
+          project?: string;
         };
         const token = parsed.token || parsed.accessToken || parsed.access || parsed.key;
         if (token) return { token, projectId: parsed.projectId || parsed.project };
@@ -54,11 +59,12 @@ async function resolveCredentials(
     return { token: configuredApiKey };
   }
 
-  const provider = ctx.getOption<string>('oauthProvider', 'google-antigravity').trim() || 'google-antigravity';
+  const provider =
+    ctx.getOption<string>('oauthProvider', 'google-antigravity').trim() || 'google-antigravity';
   const oauthAccountId = ctx.getOption<string>('oauthAccountId', '').trim();
   const authManager = OAuthAuthManager.getInstance();
 
-  logger.debug(`[antigravity-checker] resolveCredentials for '${ctx.checkerId}'`);
+  logger.debug(`resolveCredentials for '${ctx.checkerId}'`);
 
   let apiKeyResult: string;
   try {
@@ -67,7 +73,7 @@ async function resolveCredentials(
       : await authManager.getApiKey(provider as OAuthProvider);
   } catch {
     authManager.reload();
-    logger.info(`[antigravity-checker] Reloaded OAuth auth file and retrying for provider '${provider}'.`);
+    logger.info(`Reloaded OAuth auth file and retrying for provider '${provider}'.`);
     apiKeyResult = oauthAccountId
       ? await authManager.getApiKey(provider as OAuthProvider, oauthAccountId)
       : await authManager.getApiKey(provider as OAuthProvider);
@@ -89,7 +95,14 @@ async function resolveCredentials(
 
   if (typeof token === 'string' && token.trim().startsWith('{')) {
     try {
-      const parsed = JSON.parse(token) as { token?: string; accessToken?: string; access?: string; key?: string; projectId?: string; project?: string };
+      const parsed = JSON.parse(token) as {
+        token?: string;
+        accessToken?: string;
+        access?: string;
+        key?: string;
+        projectId?: string;
+        project?: string;
+      };
       const extractedToken = parsed.token || parsed.accessToken || parsed.access || parsed.key;
       if (extractedToken) {
         token = extractedToken;
@@ -98,7 +111,7 @@ async function resolveCredentials(
     } catch {}
   }
 
-  if (!token) throw new Error(`[antigravity-checker] No token found for provider '${provider}'`);
+  if (!token) throw new Error(`No token found for provider '${provider}'`);
   return { token, projectId };
 }
 
@@ -110,7 +123,7 @@ async function fetchModels(
   try {
     const url = `${endpoint}/v1internal:fetchAvailableModels`;
     const payload = projectId ? { project: projectId } : {};
-    logger.debug(`[antigravity-checker] Requesting quota from ${url}`);
+    logger.debug(`Requesting quota from ${url}`);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -124,14 +137,14 @@ async function fetchModels(
 
     if (!response.ok) {
       const errorText = await response.text().catch(() => 'no error body');
-      logger.warn(`[antigravity-checker] Request failed with status ${response.status}: ${errorText}`);
+      logger.warn(`Request failed with status ${response.status}: ${errorText}`);
       return { status: response.status };
     }
 
     const data = (await response.json()) as CloudCodeQuotaResponse;
     return { data };
   } catch (error: unknown) {
-    logger.error(`[antigravity-checker] Fetch error: ${(error as Error).message}`);
+    logger.error(`Fetch error: ${(error as Error).message}`);
     return {};
   }
 }
@@ -157,7 +170,10 @@ export default defineChecker({
 
     for (const endpoint of endpointList) {
       const result = await fetchModels(endpoint, token, projectId);
-      if (result.data) { data = result.data; break; }
+      if (result.data) {
+        data = result.data;
+        break;
+      }
       if (result.status) lastStatus = result.status;
     }
 
@@ -169,7 +185,11 @@ export default defineChecker({
       );
     }
 
-    interface ModelQuota { name: string; remainingFraction: number; resetAt?: Date }
+    interface ModelQuota {
+      name: string;
+      remainingFraction: number;
+      resetAt?: Date;
+    }
     const modelByName = new Map<string, ModelQuota>();
 
     for (const [modelId, model] of Object.entries(data.models ?? {})) {
@@ -203,7 +223,9 @@ export default defineChecker({
       if (next !== existing) modelByName.set(name, next);
     }
 
-    const parsedModels = Array.from(modelByName.values()).sort((a, b) => a.name.localeCompare(b.name));
+    const parsedModels = Array.from(modelByName.values()).sort((a, b) =>
+      a.name.localeCompare(b.name)
+    );
     const meters = [];
 
     for (const model of parsedModels) {
@@ -226,7 +248,7 @@ export default defineChecker({
       );
     }
 
-    logger.debug(`[antigravity-checker] Returning ${meters.length} meters`);
+    logger.debug(`Returning ${meters.length} meters`);
     return meters;
   },
 });

@@ -26,7 +26,7 @@ export default defineChecker({
       'https://api.moonshot.ai/v1/users/me/balance'
     );
 
-    logger.silly(`[moonshot] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

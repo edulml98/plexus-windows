@@ -108,7 +108,7 @@ export function filterClientAuthHeaders(headers: Record<string, string>): Record
     if (!CLIENT_AUTH_HEADERS.has(lowerKey)) {
       filtered[key] = value;
     } else {
-      logger.silly(`[mcp-proxy] Filtering out client auth header: ${key}`);
+      logger.silly(`Filtering out client auth header: ${key}`);
     }
   }
 
@@ -180,7 +180,7 @@ export async function proxyMcpRequest(
   const upstreamUrl = serverConfig.upstream_url;
   const staticHeaders = serverConfig.headers || {};
 
-  logger.silly(`[mcp-proxy] Server config: ${JSON.stringify({ upstreamUrl, staticHeaders })}`);
+  logger.silly(`Server config: ${JSON.stringify({ upstreamUrl, staticHeaders })}`);
 
   const filteredClientHeaders = filterHopByHopHeaders(clientHeaders);
 
@@ -192,7 +192,7 @@ export async function proxyMcpRequest(
 
   const upstreamHeaders = mergeUpstreamHeaders(clientAuthFiltered, staticHeaders);
 
-  logger.silly(`[mcp-proxy] Upstream headers: ${JSON.stringify(upstreamHeaders)}`);
+  logger.silly(`Upstream headers: ${JSON.stringify(upstreamHeaders)}`);
 
   let url = upstreamUrl;
 
@@ -202,7 +202,7 @@ export async function proxyMcpRequest(
     url = `${upstreamUrl}${separator}${params.toString()}`;
   }
 
-  logger.silly(`[mcp-proxy] Final URL: ${url}`);
+  logger.silly(`Final URL: ${url}`);
 
   try {
     const fetchOptions: RequestInit = {
@@ -222,11 +222,11 @@ export async function proxyMcpRequest(
       }
     }
 
-    logger.silly(`[mcp-proxy] Request body: ${requestBody}`);
+    logger.silly(`Request body: ${requestBody}`);
 
-    logger.silly(`[mcp-proxy] Starting fetch to ${url} with method ${method}`);
+    logger.silly(`Starting fetch to ${url} with method ${method}`);
     const response = await fetch(url, fetchOptions);
-    logger.silly(`[mcp-proxy] Fetch completed, status: ${response.status}`);
+    logger.silly(`Fetch completed, status: ${response.status}`);
 
     const responseHeaders: Record<string, string> = {};
     response.headers.forEach((value, key) => {
@@ -235,13 +235,13 @@ export async function proxyMcpRequest(
       }
     });
 
-    logger.silly(`[mcp-proxy] Response headers: ${JSON.stringify(responseHeaders)}`);
+    logger.silly(`Response headers: ${JSON.stringify(responseHeaders)}`);
 
     const contentType = response.headers.get('content-type');
-    logger.silly(`[mcp-proxy] Content-Type: ${contentType}`);
+    logger.silly(`Content-Type: ${contentType}`);
 
     if (contentType?.includes('text/event-stream') || method === 'GET') {
-      logger.debug(`[mcp-proxy] Streaming response detected`);
+      logger.debug(`Streaming response detected`);
       if (response.body) {
         return {
           status: response.status,
@@ -253,20 +253,18 @@ export async function proxyMcpRequest(
 
     const responseText = await response.text();
 
-    logger.silly(`[mcp-proxy] Response body (raw): ${responseText.substring(0, 500)}`);
+    logger.silly(`Response body (raw): ${responseText.substring(0, 500)}`);
 
     let parsedBody: unknown;
     try {
       parsedBody = JSON.parse(responseText);
-      logger.silly(
-        `[mcp-proxy] Response body (parsed): ${JSON.stringify(parsedBody).substring(0, 500)}`
-      );
+      logger.silly(`Response body (parsed): ${JSON.stringify(parsedBody).substring(0, 500)}`);
     } catch {
       parsedBody = responseText;
-      logger.silly(`[mcp-proxy] Response body (text): ${responseText.substring(0, 500)}`);
+      logger.silly(`Response body (text): ${responseText.substring(0, 500)}`);
     }
 
-    logger.silly(`[mcp-proxy] Returning status: ${response.status}`);
+    logger.silly(`Returning status: ${response.status}`);
 
     return {
       status: response.status,
@@ -275,13 +273,13 @@ export async function proxyMcpRequest(
     };
   } catch (error) {
     const err = error as Error;
-    logger.error(`[mcp-proxy] Error proxying request to ${serverName}:`, err);
-    logger.error(`[mcp-proxy] Error name: ${err.name}`);
-    logger.error(`[mcp-proxy] Error message: ${err.message}`);
-    logger.error(`[mcp-proxy] Error stack: ${err.stack}`);
+    logger.error(`Error proxying request to ${serverName}:`, err);
+    logger.error(`Error name: ${err.name}`);
+    logger.error(`Error message: ${err.message}`);
+    logger.error(`Error stack: ${err.stack}`);
 
     if (err.message.includes('ECONNREFUSED') || err.message.includes('connect')) {
-      logger.silly(`[mcp-proxy] Connection refused - upstream server not reachable`);
+      logger.silly(`Connection refused - upstream server not reachable`);
       return {
         status: 502,
         headers: {},
@@ -290,7 +288,7 @@ export async function proxyMcpRequest(
     }
 
     if (err.message.includes('timeout') || err.message.includes('ETIMEDOUT')) {
-      logger.silly(`[mcp-proxy] Request timed out`);
+      logger.silly(`Request timed out`);
       return {
         status: 504,
         headers: {},
@@ -299,7 +297,7 @@ export async function proxyMcpRequest(
     }
 
     if (err.cause) {
-      logger.silly(`[mcp-proxy] Error cause: ${JSON.stringify(err.cause)}`);
+      logger.silly(`Error cause: ${JSON.stringify(err.cause)}`);
     }
 
     return {

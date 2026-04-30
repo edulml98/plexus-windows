@@ -19,7 +19,7 @@ export default defineChecker({
       'https://api.novita.ai/openapi/v1/billing/balance/detail'
     );
 
-    logger.silly(`[novita] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

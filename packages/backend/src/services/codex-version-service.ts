@@ -38,7 +38,7 @@ export class CodexVersionService {
       });
 
       if (!response.ok) {
-        logger.debug(`[CodexVersionService] GitHub API returned status ${response.status}`);
+        logger.debug(`GitHub API returned status ${response.status}`);
         return;
       }
 
@@ -48,15 +48,15 @@ export class CodexVersionService {
 
       const version = tag.replace(/^v/, '');
       if (!/^\d+\.\d+\.\d+/.test(version)) {
-        logger.debug(`[CodexVersionService] Unexpected tag format: ${tag}, ignoring`);
+        logger.debug(`Unexpected tag format: ${tag}, ignoring`);
         return;
       }
 
       this.version = version;
-      logger.info(`[CodexVersionService] Resolved codex version: ${version}`);
+      logger.debug(`Resolved codex version: ${version}`);
     } catch (error) {
       logger.warn(
-        `[CodexVersionService] Failed to fetch codex version from GitHub: ${String(error)}. Using fallback: ${DEFAULT_CODEX_VERSION}`
+        `Failed to fetch codex version from GitHub: ${String(error)}. Using fallback: ${DEFAULT_CODEX_VERSION}`
       );
     }
   }

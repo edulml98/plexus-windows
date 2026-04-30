@@ -18,7 +18,7 @@ export default defineChecker({
     const hertzSession = ctx.requireOption<string>('hertzSession').trim();
 
     const endpoint = `https://platform.minimax.io/account/query_balance?GroupId=${encodeURIComponent(groupid)}`;
-    logger.silly(`[minimax] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
 
     const response = await fetch(endpoint, {
       method: 'GET',

@@ -166,8 +166,8 @@ if (!process.env.DATABASE_URL) {
 }
 
 // Log startup configuration
-logger.info(`DATABASE_URL: ${process.env.DATABASE_URL}`);
-logger.info(`PORT: ${process.env.PORT || '4000'}`);
+logger.debug(`DATABASE_URL: ${process.env.DATABASE_URL}`);
+logger.debug(`PORT: ${process.env.PORT || '4000'}`);
 
 const fastify = Fastify({
   logger: false, // We use a custom winston-based logger
@@ -207,7 +207,7 @@ SelectorFactory.setUsageStorage(usageStorage);
 // Enable debug mode if DEBUG=true environment variable is set
 if (process.env.DEBUG === 'true') {
   DebugManager.getInstance().setEnabled(true);
-  logger.info('Debug mode auto-enabled via DEBUG=true environment variable');
+  logger.warn('Debug mode auto-enabled via DEBUG=true environment variable');
 }
 
 // --- Database Initialization ---
@@ -233,7 +233,7 @@ try {
   const configService = ConfigService.getInstance();
 
   if (await configService.isFirstLaunch()) {
-    logger.info('First launch detected — checking for existing config files to import');
+    logger.debug('First launch detected — checking for existing config files to import');
 
     // Import from plexus.yaml if it exists
     // Try CONFIG_FILE env var first, then check common locations
@@ -251,9 +251,9 @@ try {
       if (configPath && fs.existsSync(configPath)) {
         const yamlContent = fs.readFileSync(configPath, 'utf-8');
         await configService.importFromYaml(yamlContent);
-        logger.info(`Imported configuration from ${configPath} into database`);
+        logger.debug(`Imported configuration from ${configPath} into database`);
       } else {
-        logger.info('No plexus.yaml found — starting with empty configuration');
+        logger.debug('No plexus.yaml found — starting with empty configuration');
       }
 
       // Import from auth.json if it exists
@@ -261,13 +261,13 @@ try {
       if (fs.existsSync(authJsonPath)) {
         const authContent = fs.readFileSync(authJsonPath, 'utf-8');
         await configService.importFromAuthJson(authContent);
-        logger.info(`Imported OAuth credentials from ${authJsonPath} into database`);
+        logger.debug(`Imported OAuth credentials from ${authJsonPath} into database`);
       }
 
       // Mark bootstrap as complete so a future restart (even with an empty
       // providers table) does not re-import from the YAML file.
       await configService.getRepository().markBootstrapped();
-      logger.info('Bootstrap complete — marked database as bootstrapped');
+      logger.debug('Bootstrap complete — marked database as bootstrapped');
     } catch (importError) {
       logger.error(
         'Failed to import config — clearing partial data for clean retry on next launch',
@@ -279,7 +279,7 @@ try {
   }
 
   await configService.initialize();
-  logger.info('Configuration loaded from database');
+  logger.debug('Configuration loaded from database');
 
   // Eagerly initialize OAuth auth manager so auth.json schema migration
   // runs during startup (instead of waiting for first OAuth request).
@@ -322,7 +322,7 @@ try {
 let quotaEnforcer: QuotaEnforcer | undefined;
 try {
   quotaEnforcer = new QuotaEnforcer();
-  logger.info('User quota enforcer initialized');
+  logger.debug('User quota enforcer initialized');
 } catch (e) {
   logger.error('Failed to initialize user quota enforcer', e);
 }
@@ -438,7 +438,7 @@ const embeddedByName = new Map<string, EmbeddedFile>(
   (Bun.embeddedFiles as EmbeddedFile[]).map((f) => [f.name, f])
 );
 
-logger.info(`Serving frontend from: ${frontendDistDir}`);
+logger.debug(`Serving frontend from: ${frontendDistDir}`);
 
 const serveAsset = async (reply: FastifyReply, filePath: string, ext: string) => {
   const mimeType = mimeTypes[ext] ?? 'application/octet-stream';

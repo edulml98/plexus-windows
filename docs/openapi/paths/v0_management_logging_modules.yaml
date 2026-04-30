@@ -1,0 +1,106 @@
+get:
+  tags:
+    - Management — Logging
+  summary: Get module filter (admin only)
+  description: |
+    Returns the current module filter — the set of module names whose
+    log entries are printed to the console.
+
+    When the list is empty (default), no filtering is applied and all
+    modules' logs are shown on the console.
+
+    ## Scope
+
+    This filter only affects the **console** transport.  The streaming
+    transport (used by the System Logs UI) and the StreamTransport used
+    for log streaming always receive all entries regardless of this
+    setting.
+
+    The filter can also be set at startup via the `LOG_MODULES` env var
+    (comma-separated list of module names, e.g.
+    `LOG_MODULES=dispatcher,model-metadata-manager`).
+
+    **Admin only** — limited principals receive 403.
+  security:
+    - AdminKey: []
+  responses:
+    '200':
+      description: Current module filter.
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ModuleFilterState.yaml
+    '401':
+      description: Authentication required or invalid credentials.
+  operationId: getV0ManagementLoggingModules
+put:
+  tags:
+    - Management — Logging
+  summary: Set module filter (admin only)
+  description: |
+    Replaces the current module filter with the provided list.  Only
+    logs from the listed modules will appear in console output.
+
+    Set to an empty array to show all modules (disable filtering).
+
+    **Admin only** — limited principals receive 403.
+  security:
+    - AdminKey: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          type: object
+          properties:
+            modules:
+              type: array
+              items:
+                type: string
+              description: >
+                Module names to include.  Empty array = show all modules.
+              example:
+                - dispatcher
+                - model-metadata-manager
+          required:
+            - modules
+  responses:
+    '200':
+      description: Updated module filter.
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ModuleFilterState.yaml
+    '400':
+      description: Invalid body.
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+    '401':
+      description: Authentication required or invalid credentials.
+  operationId: putV0ManagementLoggingModules
+delete:
+  tags:
+    - Management — Logging
+  summary: Clear module filter (admin only)
+  description: |
+    Clears the module filter so that all modules' logs appear in console
+    output again.
+
+    **Admin only** — limited principals receive 403.
+  security:
+    - AdminKey: []
+  responses:
+    '200':
+      description: Filter cleared (empty list).
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/ModuleFilterState.yaml
+    '401':
+      description: Authentication required or invalid credentials.
+  operationId: deleteV0ManagementLoggingModules

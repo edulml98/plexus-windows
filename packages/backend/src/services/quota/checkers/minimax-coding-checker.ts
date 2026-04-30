@@ -29,7 +29,7 @@ export default defineChecker({
       'https://www.minimax.io/v1/api/openplatform/coding_plan/remains'
     );
 
-    logger.debug(`[minimax-coding] Calling ${endpoint}`);
+    logger.debug(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

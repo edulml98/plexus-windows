@@ -112,7 +112,7 @@ export async function resolvePrincipal(request: FastifyRequest): Promise<Princip
       comment: cfg.comment ?? null,
     };
   } catch (err) {
-    logger.silly(`[AUTH] api_keys lookup failed: ${(err as Error).message}`);
+    logger.silly(`api_keys lookup failed: ${(err as Error).message}`);
     return null;
   }
 }
@@ -124,7 +124,7 @@ export async function resolvePrincipal(request: FastifyRequest): Promise<Princip
 export async function authenticate(request: FastifyRequest, _reply: FastifyReply): Promise<void> {
   const principal = await resolvePrincipal(request);
   if (!principal) {
-    logger.silly(`[ADMIN AUTH] Rejected request to ${request.url} - invalid or missing credential`);
+    logger.silly(`Rejected request to ${request.url} - invalid or missing credential`);
     throw new ManagementAuthError(401, 'Unauthorized', 'auth_error');
   }
   request.principal = principal;

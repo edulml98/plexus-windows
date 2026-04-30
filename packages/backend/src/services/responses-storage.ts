@@ -43,7 +43,7 @@ export class ResponsesStorageService {
         try {
           const result = await this.cleanupOldResponses(ttlDays);
           if (result.deletedResponses > 0) {
-            logger.info(
+            logger.debug(
               `Scheduled cleanup: deleted ${result.deletedResponses} responses, ${result.deletedItems} items, ${result.deletedConversations} conversations`
             );
           }
@@ -54,7 +54,7 @@ export class ResponsesStorageService {
       intervalHours * 60 * 60 * 1000
     );
 
-    logger.info(`Response cleanup job started (every ${intervalHours}h, TTL ${ttlDays} days)`);
+    logger.debug(`Response cleanup job started (every ${intervalHours}h, TTL ${ttlDays} days)`);
   }
 
   /**
@@ -64,7 +64,7 @@ export class ResponsesStorageService {
     if (this.cleanupInterval) {
       clearInterval(this.cleanupInterval);
       this.cleanupInterval = null;
-      logger.info('Response cleanup job stopped');
+      logger.debug('Response cleanup job stopped');
     }
   }
 
@@ -324,7 +324,7 @@ export class ResponsesStorageService {
         deletedConversations = orphanedIds.length;
       }
 
-      logger.info(
+      logger.debug(
         `Cleanup: deleted ${responseIds.length} responses, ${responseIds.length} items, ${deletedConversations} orphaned conversations`
       );
       return {

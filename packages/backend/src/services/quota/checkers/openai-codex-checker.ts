@@ -126,7 +126,7 @@ export default defineChecker({
           ? authManager.getCredentials(provider as OAuthProvider, oauthAccountId)
           : authManager.getCredentials(provider as OAuthProvider)
       ) as Record<string, unknown> | null;
-      logger.debug(`[openai-codex-checker] resolveApiKey for '${ctx.checkerId}'`);
+      logger.debug(`resolveApiKey for '${ctx.checkerId}'`);
 
       let oauthApiKey: string;
       try {
@@ -168,7 +168,7 @@ export default defineChecker({
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
-    logger.silly(`[openai-codex-checker] Requesting usage for '${ctx.checkerId}' from ${endpoint}`);
+    logger.silly(`Requesting usage for '${ctx.checkerId}' from ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers,

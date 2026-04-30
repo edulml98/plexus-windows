@@ -132,7 +132,7 @@ export async function registerTestRoutes(
     try {
       const body = request.body as { provider: string; model: string; apiType?: string };
 
-      logger.info('Test endpoint called with body:', body);
+      logger.debug('Test endpoint called with body:', body);
 
       if (!body.provider || !body.model) {
         return reply.code(400).send({
@@ -148,7 +148,7 @@ export async function registerTestRoutes(
       usageRecord.incomingModelAlias = `direct/${body.provider}/${body.model}`;
       usageRecord.apiKey = (request as any).keyName;
 
-      logger.info(`Testing model: ${body.provider}/${body.model} via ${apiType} API`);
+      logger.debug(`Testing model: ${body.provider}/${body.model} via ${apiType} API`);
 
       // Validate API type
       if (
@@ -173,11 +173,11 @@ export async function registerTestRoutes(
       // Create a simple test request using the appropriate format
       // Use direct/provider/model format for direct routing (bypasses alias resolution)
       const directModelPath = `direct/${body.provider}/${body.model}`;
-      logger.info(`Direct model path: ${directModelPath}`);
+      logger.debug(`Direct model path: ${directModelPath}`);
 
       const testRequest = TEST_TEMPLATES[apiType as keyof typeof TEST_TEMPLATES](directModelPath);
 
-      logger.info('Creating transformer...');
+      logger.debug('Creating transformer...');
       let dispatchMethod: 'dispatch' | 'dispatchEmbeddings' | 'dispatchImageGenerations' =
         'dispatch';
       let imageRequestData: {
@@ -227,7 +227,7 @@ export async function registerTestRoutes(
           break;
       }
 
-      logger.info('Dispatching request...');
+      logger.debug('Dispatching request...');
       let response;
 
       if (apiType === 'transcriptions') {
@@ -352,7 +352,7 @@ export async function registerTestRoutes(
       // Save usage record
       usageStorage.saveRequest(usageRecord as UsageRecord);
 
-      logger.info(`Test completed in ${durationMs}ms`);
+      logger.debug(`Test completed in ${durationMs}ms`);
 
       // Extract response text based on API type
       let responseText: string;

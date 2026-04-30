@@ -92,7 +92,7 @@ async function tableExists(
     await selectAll(db, sql.raw(`SELECT 1 FROM ${tableName} LIMIT 0`));
     return true;
   } catch (err) {
-    logger.debug(`[legacy-migrator] tableExists(${tableName}) → false (${err})`);
+    logger.debug(`tableExists(${tableName}) → false (${err})`);
     return false;
   }
 }
@@ -127,23 +127,23 @@ export async function migrateLegacySnapshots(): Promise<MigrationResult> {
   const dialect = getCurrentDialect();
   const meterSnapshots = dialect === 'sqlite' ? sqliteMeterSnapshots : pgMeterSnapshots;
 
-  logger.info(`[legacy-migrator] Starting migration. dialect=${dialect}`);
+  logger.debug(`Starting migration. dialect=${dialect}`);
 
   if (!(await tableExists(db, 'quota_snapshots'))) {
-    logger.info('[legacy-migrator] quota_snapshots table does not exist — nothing to migrate.');
+    logger.debug('quota_snapshots table does not exist — nothing to migrate.');
     return { inserted: 0, skipped: 0, totalSource: 0 };
   }
 
   const countResult = await selectAll(db, sql`SELECT COUNT(*) as cnt FROM quota_snapshots`);
-  logger.info(`[legacy-migrator] COUNT(*) raw result: ${JSON.stringify(countResult[0])}`);
+  logger.debug(`COUNT(*) raw result: ${JSON.stringify(countResult[0])}`);
   const totalSource = Number(countResult[0]?.cnt ?? 0);
 
   if (totalSource === 0) {
-    logger.info('[legacy-migrator] quota_snapshots is empty — nothing to migrate.');
+    logger.debug('quota_snapshots is empty — nothing to migrate.');
     return { inserted: 0, skipped: 0, totalSource: 0 };
   }
 
-  logger.info(`[legacy-migrator] Migrating ${totalSource} row(s) from quota_snapshots…`);
+  logger.debug(`Migrating ${totalSource} row(s) from quota_snapshots…`);
 
   const sourceRows = await selectAll(
     db,
@@ -157,8 +157,8 @@ export async function migrateLegacySnapshots(): Promise<MigrationResult> {
     `
   );
 
-  logger.info(
-    `[legacy-migrator] Fetched ${sourceRows.length} source row(s). First row sample: ${JSON.stringify(sourceRows[0])}`
+  logger.debug(
+    `Fetched ${sourceRows.length} source row(s). First row sample: ${JSON.stringify(sourceRows[0])}`
   );
 
   let inserted = 0;
@@ -189,9 +189,7 @@ export async function migrateLegacySnapshots(): Promise<MigrationResult> {
       const resetsAtDate = row.resets_at != null ? toDate(row.resets_at) : null;
 
       if (isNaN(checkedAtDate.getTime())) {
-        logger.warn(
-          `[legacy-migrator] Row id=${row.id} has invalid checked_at=${row.checked_at}, skipping`
-        );
+        logger.warn(`Row id=${row.id} has invalid checked_at=${row.checked_at}, skipping`);
         skipped++;
         continue;
       }
@@ -235,28 +233,26 @@ export async function migrateLegacySnapshots(): Promise<MigrationResult> {
       inserted += valueBatch.length;
     } catch (err) {
       // Batch failed — fall back to row-by-row so one bad row doesn't drop the whole batch.
-      logger.warn(`[legacy-migrator] Batch insert failed, falling back to row-by-row: ${err}`);
+      logger.warn(`Batch insert failed, falling back to row-by-row: ${err}`);
       for (const v of valueBatch) {
         try {
           await db.insert(meterSnapshots).values(v);
           inserted++;
         } catch (rowErr) {
           logger.warn(
-            `[legacy-migrator] Skipping row checker=${v.checkerId} meterKey=${v.meterKey} checkedAt=${v.checkedAt?.toISOString()}: ${rowErr}`
+            `Skipping row checker=${v.checkerId} meterKey=${v.meterKey} checkedAt=${v.checkedAt?.toISOString()}: ${rowErr}`
           );
           skipped++;
         }
       }
     }
 
-    logger.info(
-      `[legacy-migrator] Progress: ${Math.min(i + BATCH_SIZE, sourceRows.length)} / ${sourceRows.length} — inserted so far: ${inserted}, skipped: ${skipped}`
+    logger.debug(
+      `Progress: ${Math.min(i + BATCH_SIZE, sourceRows.length)} / ${sourceRows.length} — inserted so far: ${inserted}, skipped: ${skipped}`
     );
   }
 
-  logger.info(
-    `[legacy-migrator] Done. Inserted: ${inserted}, Skipped: ${skipped}, Total source: ${totalSource}`
-  );
+  logger.debug(`Done. Inserted: ${inserted}, Skipped: ${skipped}, Total source: ${totalSource}`);
   return { inserted, skipped, totalSource };
 }
 
@@ -349,7 +345,7 @@ export async function truncateLegacySnapshots(): Promise<void> {
   const dialect = getCurrentDialect();
 
   if (!(await tableExists(db, 'quota_snapshots'))) {
-    logger.info('[legacy-migrator] quota_snapshots does not exist, nothing to truncate.');
+    logger.debug('quota_snapshots does not exist, nothing to truncate.');
     return;
   }
 
@@ -360,5 +356,5 @@ export async function truncateLegacySnapshots(): Promise<void> {
     await runStatement(db, sql`TRUNCATE TABLE quota_snapshots`);
   }
 
-  logger.info('[legacy-migrator] quota_snapshots truncated.');
+  logger.debug('quota_snapshots truncated.');
 }

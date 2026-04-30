@@ -1,0 +1,12 @@
+type: object
+properties:
+  modules:
+    type: array
+    description: >
+      List of module names to include in console output.  An empty array
+      means all modules are shown.
+    items:
+      type: string
+      example:
+        - dispatcher
+        - model-metadata-manager

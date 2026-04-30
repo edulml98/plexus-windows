@@ -449,6 +449,8 @@ paths:
     $ref: paths/v0_management_metrics.yaml
   /v0/management/logging/level:
     $ref: paths/v0_management_logging_level.yaml
+  /v0/management/logging/modules:
+    $ref: paths/v0_management_logging_modules.yaml
   /v0/management/oauth/providers:
     $ref: paths/v0_management_oauth_providers.yaml
   /v0/management/oauth/sessions:

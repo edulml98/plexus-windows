@@ -23,7 +23,7 @@ export async function checkQuotaMiddleware(
   const keyName = (request as any).keyName;
 
   if (!keyName) {
-    logger.debug('[QuotaMiddleware] No keyName found on request, skipping quota check');
+    logger.debug('No keyName found on request, skipping quota check');
     return true;
   }
 
@@ -64,10 +64,10 @@ export async function recordQuotaUsage(
   quotaEnforcer: QuotaEnforcer
 ): Promise<void> {
   logger.debug(
-    `[QuotaMiddleware] recordQuotaUsage called: keyName=${keyName}, costTotal=${usageRecord.costTotal}, tokensInput=${usageRecord.tokensInput}`
+    `recordQuotaUsage called: keyName=${keyName}, costTotal=${usageRecord.costTotal}, tokensInput=${usageRecord.tokensInput}`
   );
   if (!keyName) {
-    logger.debug('[QuotaMiddleware] recordQuotaUsage: no keyName, skipping');
+    logger.debug('recordQuotaUsage: no keyName, skipping');
     return;
   }
 
@@ -82,6 +82,6 @@ export async function recordQuotaUsage(
     });
   } catch (error) {
     // Log error but don't fail the request
-    logger.error('[QuotaMiddleware] Failed to record quota usage:', error);
+    logger.error('Failed to record quota usage:', error);
   }
 }

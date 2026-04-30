@@ -60,7 +60,7 @@ export class CooldownManager {
           lastError: row.lastError ?? undefined,
         });
       }
-      logger.info(`Loaded ${this.cooldowns.size} active cooldowns from storage`);
+      logger.debug(`Loaded ${this.cooldowns.size} active cooldowns from storage`);
       await this.pruneDisabledProviders();
     } catch (e) {
       logger.error('Failed to load cooldowns from storage', e);

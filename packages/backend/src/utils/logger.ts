@@ -1,6 +1,7 @@
 import winston from 'winston';
 import Transport from 'winston-transport';
 import { EventEmitter } from 'events';
+import path from 'path';
 
 const { combine, timestamp, printf, colorize, splat, json } = winston.format;
 
@@ -20,34 +21,149 @@ export class StreamTransport extends Transport {
   }
 }
 
-// Define custom format for console logging
-const consoleFormat = printf(({ level, message, timestamp, ...metadata }) => {
-  let msg = `${timestamp} [${level}]: ${message}`;
+// ─── Automatic Caller Detection ─────────────────────────────────────
+//
+// Injects [module] and [functionName] into every log entry by parsing
+// the call stack.  Skips frames from winston/logform internals and
+// from this file itself so the first user-code frame wins.  No per-
+// module configuration needed — it just works.
+//
+const addCallerInfo = winston.format((info) => {
+  const stack = new Error().stack;
+  if (!stack) return info;
 
-  // Check if there are metadata/objects to print
-  if (Object.keys(metadata).length > 0) {
-    // If the metadata contains 'splat' (from util.format style args), handle it?
-    // Winston's splat format puts extra args into metadata.
-    // We want to pretty print them.
+  const lines = stack.split('\n');
+  // Walk up the stack, skipping frames that originate from:
+  //   - winston / logform internals (node_modules)
+  //   - this logger file itself
+  //   - Bun's runtime noise
+  for (let i = 2; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line) continue;
 
-    // Handle Error objects specially - JSON.stringify on Error produces unwanted results
-    const sanitizedMetadata: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(metadata)) {
-      if (value instanceof Error) {
-        sanitizedMetadata[key] = {
-          name: value.name,
-          message: value.message,
-          stack: value.stack,
-        };
-      } else {
-        sanitizedMetadata[key] = value;
-      }
+    // Skip library / runtime frames
+    if (
+      line.includes('/node_modules/') ||
+      line.includes('/utils/logger.ts') ||
+      line.includes('node:internal') ||
+      line.includes('Bun')
+    ) {
+      continue;
     }
 
-    msg += ` ${JSON.stringify(sanitizedMetadata, null, 2)}`;
+    // Bun stack format: "at /path/file.ts:10:5"
+    // Node/V8 format:   "at fn (/path/file.ts:10:5)"
+    //                  "at Object.<anonymous> (/path/file.ts:10:5)"
+    const fileMatch = line.match(/(?:\/[^:]+)\.(ts|js)(?::\d+:\d+)/);
+    if (fileMatch) {
+      // Walk backwards from the match position to capture the full path
+      const matchIndex = fileMatch.index!;
+      const from = line.lastIndexOf(' ', matchIndex) + 1;
+      const bare = line.slice(from).replace(/^file:\/\//, '');
+      const fullPath = bare.split(':')[0] || ''; // strip line/col
+      const filename = path.basename(fullPath);
+      if (filename === 'index.ts' || filename === 'index.js') {
+        // Use the parent directory name for index files
+        info.module = path.basename(path.dirname(fullPath));
+      } else {
+        info.module = filename.replace(/\.(ts|js)$/, '');
+      }
+
+      // Extract function name (present in Node/V8 format, absent in Bun)
+      const fnMatch = line.match(/at\s+(.+?)\s+\(/);
+      if (fnMatch && fnMatch[1]) {
+        const fn = fnMatch[1].replace(/^Object\./, '');
+        if (fn !== '<anonymous>') {
+          info.functionName = fn;
+        }
+      }
+      break;
+    }
   }
-  return msg;
+  return info;
 });
+
+// ─── Module Filter ──────────────────────────────────────────────────
+//
+// Set LOG_MODULES env var to a comma-separated list of module names to
+// restrict console output to only those modules.  Empty = show all.
+// Can also be changed at runtime via the management API.
+//
+const moduleFilter = new Set<string>();
+
+const envModuleFilter = process.env.LOG_MODULES;
+if (envModuleFilter) {
+  for (const m of envModuleFilter.split(',')) {
+    const trimmed = m.trim();
+    if (trimmed) moduleFilter.add(trimmed);
+  }
+}
+
+export const getModuleFilter = (): string[] => [...moduleFilter];
+export const clearModuleFilter = (): void => {
+  moduleFilter.clear();
+};
+export const setModuleFilter = (modules: string[]): void => {
+  moduleFilter.clear();
+  for (const m of modules) {
+    if (m) moduleFilter.add(m);
+  }
+};
+export const addModuleFilter = (mod: string): void => {
+  if (mod) moduleFilter.add(mod);
+};
+
+const filterModule = winston.format((info) => {
+  if (moduleFilter.size > 0 && info.module && !moduleFilter.has(info.module as string)) {
+    return false;
+  }
+  return info;
+});
+
+// ─── Level Width Alignment ──────────────────────────────────────────
+// Pad the level name to match the widest level so the [module] column
+// stays aligned regardless of level name length.
+const MAX_LEVEL_LEN = Math.max(...SUPPORTED_LOG_LEVELS.map((l) => l.length)); // 7 (verbose)
+
+const padLevel = winston.format((info) => {
+  info.level = info.level.padEnd(MAX_LEVEL_LEN);
+  return info;
+});
+
+// ─── Console Format ─────────────────────────────────────────────────
+
+const consoleFormat = printf(
+  ({ level, message, timestamp, module: mod, functionName, ...metadata }) => {
+    const modPart = mod ? ` [${mod}]` : '';
+    let msg = `${timestamp} [${level}]${modPart}: ${message}`;
+
+    // Strip `module` and `functionName` from the metadata dump since
+    // they are already rendered as part of the formatted line.
+    const {
+      module: _m,
+      functionName: _f,
+      splat: _s,
+      ...rest
+    } = metadata as Record<string, unknown>;
+
+    if (Object.keys(rest).length > 0) {
+      const sanitized: Record<string, unknown> = {};
+      for (const [key, value] of Object.entries(rest)) {
+        if (value instanceof Error) {
+          sanitized[key] = {
+            name: value.name,
+            message: value.message,
+            stack: value.stack,
+          };
+        } else {
+          sanitized[key] = value;
+        }
+      }
+      msg += ` ${JSON.stringify(sanitized, null, 2)}`;
+    }
+    return msg;
+  }
+);
 
 // Determine log level: If DEBUG=true is set, use 'debug' level unless LOG_LEVEL is explicitly set
 const normalizeLogLevel = (level: unknown): LogLevel | null => {
@@ -102,18 +218,18 @@ export const resetCurrentLogLevel = (): LogLevel => {
 
 export const logger = winston.createLogger({
   level: currentLogLevel,
-  // Default format
-  format: combine(
-    timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-    splat(),
-    json() // Default to JSON for structural integrity if not overridden by transport
-  ),
+  // Default format — used by transports without their own format (StreamTransport).
+  // addCallerInfo runs before json() so the JSON payload includes {module, functionName}.
+  format: combine(timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }), splat(), addCallerInfo(), json()),
   transports: [
     new winston.transports.Console({
       format: combine(
+        padLevel(),
         colorize(),
         timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         splat(),
+        addCallerInfo(),
+        filterModule(),
         consoleFormat
       ),
     }),

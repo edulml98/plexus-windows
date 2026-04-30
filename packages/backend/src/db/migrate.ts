@@ -60,7 +60,7 @@ async function buildMigrations(journal: Journal, devDir: string): Promise<Migrat
   );
 
   const sources = new Set(results.map((r) => r.meta.source));
-  logger.info(
+  logger.debug(
     `Loaded ${results.length} migrations from ${sources.size === 1 ? [...sources][0] : 'mixed'} source`
   );
 
@@ -246,7 +246,7 @@ export async function runMigrations() {
     const db = getDatabase();
     const dialect = getCurrentDialect();
 
-    logger.info(`Running ${dialect} migrations...`);
+    logger.debug(`Running ${dialect} migrations...`);
 
     if (dialect === 'sqlite') {
       // In dev/source mode, re-read the journal from disk so that migrations
@@ -325,7 +325,7 @@ export async function runMigrations() {
       }
     }
 
-    logger.info('Migrations completed successfully');
+    logger.debug('Migrations completed successfully');
   } catch (error: any) {
     logger.error('Migration failed', error);
     throw error;

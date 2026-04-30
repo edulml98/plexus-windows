@@ -106,15 +106,15 @@ export class UsageInspector extends PassThrough {
         this.usageRecord.finishReason = responseMetadata.finishReason;
 
         if (this.shouldEstimateTokens) {
-          logger.info(
-            `[Inspector:Usage] No usage data found for ${this.usageRecord.requestId}, attempting estimation`
+          logger.debug(
+            `No usage data found for ${this.usageRecord.requestId}, attempting estimation`
           );
           const estimated = estimateTokensFromReconstructed(reconstructed, this.apiType);
           stats.outputTokens = estimated.output;
           stats.reasoningTokens = estimated.reasoning;
           this.usageRecord.tokensEstimated = 1;
-          logger.info(
-            `[Inspector:Usage] Estimated tokens for ${this.usageRecord.requestId}: ` +
+          logger.debug(
+            `Estimated tokens for ${this.usageRecord.requestId}: ` +
               `output=${stats.outputTokens}, reasoning=${stats.reasoningTokens}`
           );
           debugManager.discardEphemeral(this.usageRecord.requestId!);
@@ -170,10 +170,7 @@ export class UsageInspector extends PassThrough {
       // Fire-and-forget: saveRequest is async but _flush is synchronous
       // Attach error handler to prevent unhandled promise rejections
       this.usageStorage.saveRequest(this.usageRecord as UsageRecord).catch((err) => {
-        logger.error(
-          `[Inspector:Usage] Failed to save usage record for ${this.usageRecord.requestId}:`,
-          err
-        );
+        logger.error(`Failed to save usage record for ${this.usageRecord.requestId}:`, err);
       });
 
       // Record quota usage after costs are calculated (fire-and-forget)
@@ -190,7 +187,7 @@ export class UsageInspector extends PassThrough {
           },
           this.quotaEnforcer
         ).catch((err) => {
-          logger.error(`[Inspector:Usage] Failed to record quota usage for ${this.keyName}:`, err);
+          logger.error(`Failed to record quota usage for ${this.keyName}:`, err);
         });
       }
 
@@ -209,22 +206,17 @@ export class UsageInspector extends PassThrough {
           )
           .catch((err) => {
             logger.error(
-              `[Inspector:Usage] Failed to update performance metrics for ${this.usageRecord.requestId}:`,
+              `Failed to update performance metrics for ${this.usageRecord.requestId}:`,
               err
             );
           });
       }
 
-      logger.debug(
-        `[Inspector:Usage] Request ${this.usageRecord.requestId} usage analysis complete.`
-      );
+      logger.debug(`Request ${this.usageRecord.requestId} usage analysis complete.`);
       DebugManager.getInstance().flush(this.usageRecord.requestId!);
       callback();
     } catch (err) {
-      logger.error(
-        `[Inspector:Usage] Error analyzing usage for ${this.usageRecord.requestId}:`,
-        err
-      );
+      logger.error(`Error analyzing usage for ${this.usageRecord.requestId}:`, err);
       callback();
     }
   }

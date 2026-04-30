@@ -48,9 +48,12 @@ export default defineChecker({
   }),
   async check(ctx) {
     const managementApiKey = ctx.requireOption<string>('managementApiKey');
-    const endpoint = ctx.getOption<string>('endpoint', 'https://zenmux.ai/api/v1/management/subscription/detail');
+    const endpoint = ctx.getOption<string>(
+      'endpoint',
+      'https://zenmux.ai/api/v1/management/subscription/detail'
+    );
 
-    logger.silly(`[zenmux] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Authorization: `Bearer ${managementApiKey}`, Accept: 'application/json' },
@@ -95,7 +98,7 @@ export default defineChecker({
       })
     );
 
-    logger.silly(`[zenmux] Returning ${meters.length} meters`);
+    logger.silly(`Returning ${meters.length} meters`);
     return meters;
   },
 });

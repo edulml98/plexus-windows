@@ -42,7 +42,7 @@ export class DebugManager {
   // ─── Global toggle ──────────────────────────────────────────────
   setEnabled(enabled: boolean) {
     this.enabledGlobal = enabled;
-    logger.info(`Debug mode (global) ${enabled ? 'enabled' : 'disabled'}`);
+    logger.warn(`Debug mode (global) ${enabled ? 'enabled' : 'disabled'}`);
   }
 
   isEnabled(): boolean {
@@ -52,12 +52,12 @@ export class DebugManager {
   // ─── Per-key toggle ─────────────────────────────────────────────
   enableForKey(keyName: string): void {
     this.enabledKeys.add(keyName);
-    logger.info(`Debug mode enabled for key '${keyName}'`);
+    logger.warn(`Debug mode enabled for key '${keyName}'`);
   }
 
   disableForKey(keyName: string): void {
     this.enabledKeys.delete(keyName);
-    logger.info(`Debug mode disabled for key '${keyName}'`);
+    logger.warn(`Debug mode disabled for key '${keyName}'`);
   }
 
   isEnabledForKey(keyName: string | null | undefined): boolean {
@@ -81,7 +81,7 @@ export class DebugManager {
   // ─── Provider filter ────────────────────────────────────────────
   setProviderFilter(providers: string[] | null) {
     this.providerFilter = providers;
-    logger.info(
+    logger.warn(
       `Debug provider filter ${providers ? 'set to: ' + providers.join(', ') : 'cleared'}`
     );
   }
@@ -174,7 +174,7 @@ export class DebugManager {
   flush(requestId: string) {
     // Skip flushing ephemeral requests
     if (this.ephemeralRequests.has(requestId)) {
-      logger.debug(`[DebugManager] Skipping flush for ephemeral request ${requestId}`);
+      logger.debug(`Skipping flush for ephemeral request ${requestId}`);
       this.pendingLogs.delete(requestId);
       return;
     }
@@ -185,7 +185,7 @@ export class DebugManager {
     // Only persist to database if debug mode is enabled for this request's key
     if (!this.isEnabledForKey(log.apiKey ?? null)) {
       logger.debug(
-        `[DebugManager] Skipping flush for ${requestId} - debug mode not enabled for key '${log.apiKey ?? '(none)'}'`
+        `Skipping flush for ${requestId} - debug mode not enabled for key '${log.apiKey ?? '(none)'}'`
       );
       this.pendingLogs.delete(requestId);
       return;
@@ -195,14 +195,12 @@ export class DebugManager {
 
     // Check provider filter
     if (log.provider && !this.shouldLogProvider(log.provider)) {
-      logger.debug(
-        `[DebugManager] Skipping flush for ${requestId} - provider '${log.provider}' not in filter`
-      );
+      logger.debug(`Skipping flush for ${requestId} - provider '${log.provider}' not in filter`);
       this.pendingLogs.delete(requestId);
       return;
     }
 
-    logger.debug(`[DebugManager] Flushing debug log for ${requestId}`);
+    logger.debug(`Flushing debug log for ${requestId}`);
     if (typeof this.storage.saveDebugLog === 'function') {
       this.storage.saveDebugLog(log);
     }
@@ -214,7 +212,7 @@ export class DebugManager {
    */
   markEphemeral(requestId: string): void {
     this.ephemeralRequests.add(requestId);
-    logger.debug(`[DebugManager] Marked ${requestId} as ephemeral`);
+    logger.debug(`Marked ${requestId} as ephemeral`);
   }
 
   /**
@@ -239,7 +237,7 @@ export class DebugManager {
     if (this.ephemeralRequests.has(requestId)) {
       this.pendingLogs.delete(requestId);
       this.ephemeralRequests.delete(requestId);
-      logger.debug(`[DebugManager] Discarded ephemeral data for ${requestId}`);
+      logger.debug(`Discarded ephemeral data for ${requestId}`);
     }
   }
 }

@@ -69,7 +69,7 @@ export class OAuthAuthManager {
         0
       );
       if (totalAccounts > 0) {
-        logger.info(`OAuth: Loaded ${totalAccounts} credential(s) from database`);
+        logger.debug(`OAuth: Loaded ${totalAccounts} credential(s) from database`);
       }
     } catch (error: any) {
       // If the oauth_credentials table doesn't exist yet (e.g. pre-migration or test environment),

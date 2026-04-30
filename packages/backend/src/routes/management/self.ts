@@ -259,7 +259,7 @@ export async function registerSelfRoutes(fastify: FastifyInstance, quotaEnforcer
         limitType: result.limitType,
       });
     } catch (err: any) {
-      logger.error(`[self/quota] check failed for ${target.keyName}: ${err?.message || err}`);
+      logger.error(`check failed for ${target.keyName}: ${err?.message || err}`);
       return reply.code(500).send({ error: err?.message || 'Failed to fetch quota status' });
     }
   });

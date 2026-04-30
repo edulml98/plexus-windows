@@ -15,7 +15,10 @@ interface OAuthUsageResponse {
   [key: string]: unknown;
 }
 
-async function resolveApiKey(ctx: { getOption<T>(key: string, def: T): T; checkerId: string }): Promise<string> {
+async function resolveApiKey(ctx: {
+  getOption<T>(key: string, def: T): T;
+  checkerId: string;
+}): Promise<string> {
   const configured = ctx.getOption<string>('apiKey', '').trim();
   if (configured) return configured;
 
@@ -29,7 +32,7 @@ async function resolveApiKey(ctx: { getOption<T>(key: string, def: T): T; checke
       : await authManager.getApiKey(provider as OAuthProvider);
   } catch {
     authManager.reload();
-    logger.info(`[claude-code-checker] Reloaded OAuth auth file and retrying for '${provider}'`);
+    logger.info(`Reloaded OAuth auth file and retrying for '${provider}'`);
     return oauthAccountId
       ? await authManager.getApiKey(provider as OAuthProvider, oauthAccountId)
       : await authManager.getApiKey(provider as OAuthProvider);
@@ -48,7 +51,7 @@ export default defineChecker({
     const apiKey = await resolveApiKey(ctx);
     const endpoint = ctx.getOption<string>('endpoint', 'https://api.anthropic.com/api/oauth/usage');
 
-    logger.silly(`[claude-code-checker] Fetching usage from ${endpoint}`);
+    logger.silly(`Fetching usage from ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
@@ -60,7 +63,7 @@ export default defineChecker({
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 
     const usage = (await response.json()) as OAuthUsageResponse;
-    logger.silly(`[claude-code-checker] Usage: ${JSON.stringify(usage)}`);
+    logger.silly(`Usage: ${JSON.stringify(usage)}`);
 
     const meters = [];
 
@@ -96,7 +99,7 @@ export default defineChecker({
       );
     }
 
-    logger.silly(`[claude-code-checker] Returning ${meters.length} meters`);
+    logger.silly(`Returning ${meters.length} meters`);
     return meters;
   },
 });

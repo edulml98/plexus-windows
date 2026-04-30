@@ -56,13 +56,13 @@ export function attachKeyAccessPolicy<T extends { metadata?: Record<string, any>
 export function createAuthHook() {
   return {
     onRequest: async (request: FastifyRequest) => {
-      logger.silly(`[AUTH] onRequest called: ${request.method} ${request.url}`);
+      logger.silly(`onRequest called: ${request.method} ${request.url}`);
 
       // Normalize Authorization header - ensure it has "Bearer " prefix
       const authHeader = request.headers.authorization;
       if (authHeader) {
         if (!authHeader.toLowerCase().startsWith('bearer ')) {
-          logger.silly(`[AUTH] Adding Bearer prefix to existing Authorization header`);
+          logger.silly(`Adding Bearer prefix to existing Authorization header`);
           request.headers.authorization = `Bearer ${authHeader}`;
         }
       } else {
@@ -75,25 +75,25 @@ export function createAuthHook() {
 
         if (typeof apiKey === 'string') {
           request.headers.authorization = `Bearer ${apiKey}`;
-          logger.silly(`[AUTH] Set authorization from x-api-key/x-goog-api-key`);
+          logger.silly(`Set authorization from x-api-key/x-goog-api-key`);
         }
       }
 
       logger.silly(
-        `[AUTH] Final Authorization header: ${request.headers.authorization?.substring(0, 25)}`
+        `Final Authorization header: ${request.headers.authorization?.substring(0, 25)}`
       );
     },
 
     bearerAuthOptions: {
       keys: new Set([]),
       auth: (key: string, req: any) => {
-        logger.silly(`[AUTH] bearerAuth auth called with key: ${key.substring(0, 25)}`);
+        logger.silly(`bearerAuth auth called with key: ${key.substring(0, 25)}`);
 
         const config = getConfig();
-        logger.silly(`[AUTH] config.keys exists: ${!!config.keys}`);
+        logger.silly(`config.keys exists: ${!!config.keys}`);
 
         if (!config.keys) {
-          logger.silly(`[AUTH] No keys configured`);
+          logger.silly(`No keys configured`);
           return false;
         }
 
@@ -109,15 +109,15 @@ export function createAuthHook() {
           secretPart = key;
         }
 
-        logger.silly(`[AUTH] Looking for secret: ${secretPart.substring(0, 15)}`);
-        logger.silly(`[AUTH] Available keys config: ${JSON.stringify(config.keys)}`);
+        logger.silly(`Looking for secret: ${secretPart.substring(0, 15)}`);
+        logger.silly(`Available keys config: ${JSON.stringify(config.keys)}`);
 
         const entry = Object.entries(config.keys).find(
           ([_, k]) => (k as { secret: string }).secret === secretPart
         );
 
         if (entry) {
-          logger.silly(`[AUTH] Auth SUCCESS for key: ${entry[0]}`);
+          logger.silly(`Auth SUCCESS for key: ${entry[0]}`);
           req.keyName = entry[0];
           req.attribution = attributionPart;
           req.keyConfig = entry[1];
@@ -127,13 +127,13 @@ export function createAuthHook() {
           return true;
         }
 
-        logger.silly(`[AUTH] Auth FAILED - no matching key`);
-        logger.error(`[AUTH] Auth FAILED - no matching key for secret: ${secretPart}`);
-        logger.error(`[AUTH] Available keys config: ${JSON.stringify(config.keys)}`);
+        logger.silly(`Auth FAILED - no matching key`);
+        logger.error(`Auth FAILED - no matching key for secret: ${secretPart}`);
+        logger.error(`Available keys config: ${JSON.stringify(config.keys)}`);
         return false;
       },
       errorResponse: ((err: Error) => {
-        logger.silly(`[AUTH] Error response: ${err.message}`);
+        logger.silly(`Error response: ${err.message}`);
         return { error: { message: err.message, type: 'auth_error', code: 401 } };
       }) as any,
     },

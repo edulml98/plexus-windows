@@ -79,7 +79,9 @@ export default defineChecker({
     }
 
     if (data.state === 'grace') {
-      logger.debug(`[nanogpt] Account is in grace period${data.graceUntil ? ` until ${data.graceUntil}` : ''}`);
+      logger.debug(
+        `Account is in grace period${data.graceUntil ? ` until ${data.graceUntil}` : ''}`
+      );
     }
 
     const meters = [];
@@ -144,7 +146,7 @@ export default defineChecker({
       );
     }
 
-    logger.debug(`[nanogpt] Returning ${meters.length} meter(s)`);
+    logger.debug(`Returning ${meters.length} meter(s)`);
     return meters;
   },
 });

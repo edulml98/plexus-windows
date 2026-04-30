@@ -39,7 +39,7 @@ export default defineChecker({
     const apiKey = ctx.requireOption<string>('apiKey');
     const endpoint = ctx.getOption<string>('endpoint', 'https://api.neuralwatt.com/v1/quota');
 
-    logger.silly(`[neuralwatt] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
@@ -56,8 +56,12 @@ export default defineChecker({
           key: 'credit_balance',
           label: 'Credit balance',
           unit: 'usd',
-          limit: Number.isFinite(data.balance.total_credits_usd) ? data.balance.total_credits_usd : undefined,
-          used: Number.isFinite(data.balance.credits_used_usd) ? data.balance.credits_used_usd : undefined,
+          limit: Number.isFinite(data.balance.total_credits_usd)
+            ? data.balance.total_credits_usd
+            : undefined,
+          used: Number.isFinite(data.balance.credits_used_usd)
+            ? data.balance.credits_used_usd
+            : undefined,
           remaining: data.balance.credits_remaining_usd,
         })
       );
@@ -65,7 +69,11 @@ export default defineChecker({
 
     if (data.subscription) {
       const sub = data.subscription;
-      if (Number.isFinite(sub.kwh_included) && Number.isFinite(sub.kwh_used) && Number.isFinite(sub.kwh_remaining)) {
+      if (
+        Number.isFinite(sub.kwh_included) &&
+        Number.isFinite(sub.kwh_used) &&
+        Number.isFinite(sub.kwh_remaining)
+      ) {
         meters.push(
           ctx.allowance({
             key: 'energy_quota',
@@ -83,9 +91,10 @@ export default defineChecker({
       }
     }
 
-    if (meters.length === 0) throw new Error('No valid balance or subscription data received from Neuralwatt API');
+    if (meters.length === 0)
+      throw new Error('No valid balance or subscription data received from Neuralwatt API');
 
-    logger.debug(`[neuralwatt] Returning ${meters.length} meters`);
+    logger.debug(`Returning ${meters.length} meters`);
     return meters;
   },
 });

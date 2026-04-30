@@ -45,7 +45,7 @@ export default defineChecker({
     const apiKey = ctx.requireOption<string>('apiKey');
     const endpoint = ctx.getOption<string>('endpoint', 'https://api.kimi.com/coding/v1/usages');
 
-    logger.debug(`[kimi-code] Fetching usage from ${endpoint}`);
+    logger.debug(`Fetching usage from ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
@@ -95,7 +95,7 @@ export default defineChecker({
       }
     }
 
-    logger.debug(`[kimi-code] Returning ${meters.length} meters`);
+    logger.debug(`Returning ${meters.length} meters`);
     return meters;
   },
 });

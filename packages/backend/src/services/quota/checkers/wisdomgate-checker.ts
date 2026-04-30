@@ -21,7 +21,7 @@ export default defineChecker({
       'https://wisgate.ai/api/dashboard/billing/usage/details'
     );
 
-    logger.silly(`[wisdomgate] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Cookie: `session=${session}`, Accept: 'application/json' },

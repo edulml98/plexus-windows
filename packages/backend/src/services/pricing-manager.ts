@@ -36,7 +36,7 @@ export class PricingManager {
 
   public async loadPricing(source: string = 'https://openrouter.ai/api/v1/models'): Promise<void> {
     try {
-      logger.info(`Loading pricing data from ${source}`);
+      logger.debug(`Loading pricing data from ${source}`);
       let data: OpenRouterResponse;
 
       if (source.startsWith('http')) {
@@ -59,7 +59,7 @@ export class PricingManager {
         for (const model of data.data) {
           this.pricingMap.set(model.id, model.pricing);
         }
-        logger.info(`Loaded pricing for ${this.pricingMap.size} models`);
+        logger.debug(`Loaded pricing for ${this.pricingMap.size} models`);
         this.initialized = true;
       } else {
         logger.warn('Invalid pricing data format');

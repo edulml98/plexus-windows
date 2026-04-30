@@ -16,7 +16,7 @@ export default defineChecker({
     const apiKey = ctx.requireOption<string>('apiKey');
     const endpoint = ctx.getOption<string>('endpoint', 'https://api.poe.com/usage/current_balance');
 
-    logger.silly(`[poe] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },

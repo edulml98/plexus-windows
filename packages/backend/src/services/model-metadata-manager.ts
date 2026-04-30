@@ -272,10 +272,10 @@ export class ModelMetadataManager {
 
   private async loadOpenRouter(source: string): Promise<void> {
     try {
-      logger.info(`[ModelMetadataManager] Loading OpenRouter metadata from ${source}`);
+      logger.debug(`Loading OpenRouter metadata from ${source}`);
       const raw = await this.fetchOrReadJson<OpenRouterResponse>(source);
       if (!raw || !Array.isArray(raw.data)) {
-        logger.warn('[ModelMetadataManager] Invalid OpenRouter response format');
+        logger.warn('Invalid OpenRouter response format');
         return;
       }
       this.openrouterMap.clear();
@@ -285,17 +285,17 @@ export class ModelMetadataManager {
         }
       }
       this.initializedSources.add('openrouter');
-      logger.info(`[ModelMetadataManager] Loaded ${this.openrouterMap.size} OpenRouter models`);
+      logger.debug(`Loaded ${this.openrouterMap.size} OpenRouter models`);
     } catch (error) {
-      logger.error('[ModelMetadataManager] Failed to load OpenRouter metadata', error);
+      logger.error('Failed to load OpenRouter metadata', error);
     }
   }
   private async loadModelsDev(source: string): Promise<void> {
     try {
-      logger.info(`[ModelMetadataManager] Loading models.dev metadata from ${source}`);
+      logger.debug(`Loading models.dev metadata from ${source}`);
       const raw = await this.fetchOrReadJson<Record<string, ModelsDevProvider>>(source);
       if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
-        logger.warn('[ModelMetadataManager] Invalid models.dev response format');
+        logger.warn('Invalid models.dev response format');
         return;
       }
       this.modelsDevMap.clear();
@@ -320,18 +320,18 @@ export class ModelMetadataManager {
         }
       }
       this.initializedSources.add('models.dev');
-      logger.info(`[ModelMetadataManager] Loaded ${this.modelsDevMap.size} models.dev models`);
+      logger.debug(`Loaded ${this.modelsDevMap.size} models.dev models`);
     } catch (error) {
-      logger.error('[ModelMetadataManager] Failed to load models.dev metadata', error);
+      logger.error('Failed to load models.dev metadata', error);
     }
   }
 
   private async loadCatwalk(source: string): Promise<void> {
     try {
-      logger.info(`[ModelMetadataManager] Loading Catwalk metadata from ${source}`);
+      logger.debug(`Loading Catwalk metadata from ${source}`);
       const raw = await this.fetchOrReadJson<CatwalkProvider[]>(source);
       if (!raw || !Array.isArray(raw)) {
-        logger.warn('[ModelMetadataManager] Invalid Catwalk response format');
+        logger.warn('Invalid Catwalk response format');
         return;
       }
       this.catwalkMap.clear();
@@ -345,9 +345,9 @@ export class ModelMetadataManager {
         }
       }
       this.initializedSources.add('catwalk');
-      logger.info(`[ModelMetadataManager] Loaded ${this.catwalkMap.size} Catwalk models`);
+      logger.debug(`Loaded ${this.catwalkMap.size} Catwalk models`);
     } catch (error) {
-      logger.error('[ModelMetadataManager] Failed to load Catwalk metadata', error);
+      logger.error('Failed to load Catwalk metadata', error);
     }
   }
 

@@ -29,7 +29,7 @@ export default defineChecker({
       'https://api.z.ai/api/monitor/usage/quota/limit'
     );
 
-    logger.silly(`[zai-checker] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
@@ -77,7 +77,7 @@ export default defineChecker({
       }
     }
 
-    logger.silly(`[zai-checker] Returning ${meters.length} meters`);
+    logger.silly(`Returning ${meters.length} meters`);
     return meters;
   },
 });

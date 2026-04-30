@@ -36,7 +36,7 @@ async function resolveApiKey(
 
   const refreshToken = (credentials as Record<string, unknown>)?.refresh as string | undefined;
   logger.debug(
-    `[copilot-checker] resolveApiKey for '${checkerId}' — ` +
+    `resolveApiKey for '${checkerId}' — ` +
       `refresh=${refreshToken ? `present(${refreshToken.length} chars)` : 'MISSING'}`
   );
   if (refreshToken) return refreshToken;
@@ -67,7 +67,10 @@ export default defineChecker({
   }),
   async check(ctx) {
     const apiKey = await resolveApiKey(ctx.getOption.bind(ctx), ctx.checkerId);
-    const endpoint = ctx.getOption<string>('endpoint', 'https://api.github.com/copilot_internal/user');
+    const endpoint = ctx.getOption<string>(
+      'endpoint',
+      'https://api.github.com/copilot_internal/user'
+    );
     const userAgent = ctx.getOption<string>('userAgent', 'GitHubCopilotChat/0.26.7');
     const editorVersion = ctx.getOption<string>('editorVersion', 'vscode/1.96.2');
     const apiVersion = ctx.getOption<string>('apiVersion', '2025-04-01');
@@ -76,7 +79,7 @@ export default defineChecker({
     const abortController = new AbortController();
     const timeout = setTimeout(() => abortController.abort(), timeoutMs);
 
-    logger.silly(`[copilot-checker] Requesting quota from ${endpoint}`);
+    logger.silly(`Requesting quota from ${endpoint}`);
 
     const response = await fetch(endpoint, {
       method: 'GET',
@@ -94,7 +97,7 @@ export default defineChecker({
     if (!response.ok) throw new Error(`HTTP ${response.status}: ${response.statusText}`);
 
     const data: CopilotUsageResponse = await response.json();
-    logger.silly(`[copilot-checker] API response: ${JSON.stringify(data)}`);
+    logger.silly(`API response: ${JSON.stringify(data)}`);
 
     const resetDate = data.quota_reset_date_utc
       ? new Date(data.quota_reset_date_utc).toISOString()

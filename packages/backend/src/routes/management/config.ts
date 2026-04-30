@@ -139,7 +139,7 @@ export async function registerConfigRoutes(
     }
     try {
       await configService.saveProvider(slug, result.data);
-      logger.info(`Provider '${slug}' saved via API (PUT)`);
+      logger.debug(`Provider '${slug}' saved via API (PUT)`);
       return reply.send({ success: true, slug });
     } catch (e: any) {
       logger.error(`Failed to save provider '${slug}'`, e);
@@ -166,7 +166,7 @@ export async function registerConfigRoutes(
         return reply.code(400).send({ error: 'Validation failed', details: result.error.issues });
       }
       await configService.saveProvider(slug, result.data);
-      logger.info(`Provider '${slug}' updated via API (PATCH)`);
+      logger.debug(`Provider '${slug}' updated via API (PATCH)`);
       return reply.send({ success: true, slug });
     } catch (e: any) {
       logger.error(`Failed to patch provider '${slug}'`, e);
@@ -182,7 +182,7 @@ export async function registerConfigRoutes(
 
     try {
       await configService.deleteProvider(providerId, cascade);
-      logger.info(`Provider '${providerId}' deleted via API${cascade ? ' (cascade)' : ''}`);
+      logger.debug(`Provider '${providerId}' deleted via API${cascade ? ' (cascade)' : ''}`);
       return reply.send({ success: true, provider: providerId });
     } catch (e: any) {
       logger.error(`Failed to delete provider '${providerId}'`, e);
@@ -219,7 +219,7 @@ export async function registerConfigRoutes(
         buildProviderGpuParamsMap(configService)
       );
 
-      logger.info(`Model alias '${slug}' saved via API (PUT)`);
+      logger.debug(`Model alias '${slug}' saved via API (PUT)`);
       return reply.send({ success: true, slug });
     } catch (e: any) {
       logger.error(`Failed to save model alias '${slug}'`, e);
@@ -254,7 +254,7 @@ export async function registerConfigRoutes(
         buildProviderGpuParamsMap(configService)
       );
 
-      logger.info(`Model alias '${slug}' updated via API (PATCH)`);
+      logger.debug(`Model alias '${slug}' updated via API (PATCH)`);
       return reply.send({ success: true, slug });
     } catch (e: any) {
       logger.error(`Failed to patch model alias '${slug}'`, e);
@@ -268,7 +268,7 @@ export async function registerConfigRoutes(
 
     try {
       await configService.deleteAlias(aliasId);
-      logger.info(`Model alias '${aliasId}' deleted via API`);
+      logger.debug(`Model alias '${aliasId}' deleted via API`);
       return reply.send({ success: true });
     } catch (e: any) {
       logger.error(`Failed to delete model alias '${aliasId}'`, e);
@@ -279,7 +279,7 @@ export async function registerConfigRoutes(
   fastify.delete('/v0/management/models', async (_request, reply) => {
     try {
       const deletedCount = await configService.deleteAllAliases();
-      logger.info(`Deleted all model aliases (${deletedCount}) via API`);
+      logger.debug(`Deleted all model aliases (${deletedCount}) via API`);
       return reply.send({ success: true, deletedCount });
     } catch (e: any) {
       logger.error('Failed to delete all model aliases', e);
@@ -307,7 +307,7 @@ export async function registerConfigRoutes(
     }
     try {
       await configService.saveKey(name, result.data);
-      logger.info(`API key '${name}' saved via API (PUT)`);
+      logger.debug(`API key '${name}' saved via API (PUT)`);
       return reply.send({ success: true, name });
     } catch (e: any) {
       logger.error(`Failed to save API key '${name}'`, e);
@@ -320,7 +320,7 @@ export async function registerConfigRoutes(
 
     try {
       await configService.deleteKey(name);
-      logger.info(`API key '${name}' deleted via API`);
+      logger.debug(`API key '${name}' deleted via API`);
       return reply.send({ success: true });
     } catch (e: any) {
       logger.error(`Failed to delete API key '${name}'`, e);
@@ -347,7 +347,7 @@ export async function registerConfigRoutes(
 
     try {
       await configService.setSettingsBulk(body);
-      logger.info('System settings updated via API');
+      logger.debug('System settings updated via API');
       return reply.send({ success: true });
     } catch (e: any) {
       logger.error('Failed to update system settings', e);
@@ -410,7 +410,7 @@ export async function registerConfigRoutes(
 
     try {
       await configService.saveMcpServer(serverName, result.data);
-      logger.info(`MCP server '${serverName}' saved via API (PUT)`);
+      logger.debug(`MCP server '${serverName}' saved via API (PUT)`);
       return reply.send({ success: true, name: serverName });
     } catch (e: any) {
       logger.error(`Failed to save MCP server '${serverName}'`, e);
@@ -423,7 +423,7 @@ export async function registerConfigRoutes(
 
     try {
       await configService.deleteMcpServer(serverName);
-      logger.info(`MCP server '${serverName}' deleted via API`);
+      logger.debug(`MCP server '${serverName}' deleted via API`);
       return reply.send({ success: true });
     } catch (e: any) {
       logger.error(`Failed to delete MCP server '${serverName}'`, e);

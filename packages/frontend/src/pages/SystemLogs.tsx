@@ -41,6 +41,8 @@ export const SystemLogs: React.FC = () => {
   ]);
   const [selectedLevel, setSelectedLevel] = useState('info');
   const [isUpdatingLevel, setIsUpdatingLevel] = useState(false);
+  const [moduleFilter, setModuleFilterState] = useState<string[]>([]);
+  const [moduleInput, setModuleInput] = useState('');
   const isPausedRef = useRef(false);
   const { adminKey } = useAuth();
   const logsEndRef = useRef<HTMLDivElement>(null);
@@ -64,6 +66,9 @@ export const SystemLogs: React.FC = () => {
       setStartupLevel(state.startupLevel);
       setSupportedLevels(state.supportedLevels);
       setSelectedLevel(state.level);
+    });
+    api.getModuleFilter().then((state) => {
+      setModuleFilterState(state.modules);
     });
   }, []);
 
@@ -238,10 +243,91 @@ export const SystemLogs: React.FC = () => {
             </Button>
           </div>
         </div>
-        <div className="px-4 py-2 text-xs text-text-secondary border-b border-border-glass">
-          Current level: <span className="text-text font-semibold">{currentLevel}</span> · Startup
-          default: <span className="text-text font-semibold">{startupLevel}</span> · Runtime changes
-          reset on restart.
+
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b border-border-glass">
+          <div className="text-xs text-text-secondary">
+            Current level: <span className="text-text font-semibold">{currentLevel}</span> · Startup
+            default: <span className="text-text font-semibold">{startupLevel}</span> · Runtime
+            changes reset on restart.
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              {moduleFilter.length > 0 ? (
+                moduleFilter.map((m) => (
+                  <span
+                    key={m}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-primary/15 text-primary border border-primary/30"
+                  >
+                    {m}
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const next = moduleFilter.filter((x) => x !== m);
+                        setModuleFilterState(next);
+                        try {
+                          if (next.length === 0) {
+                            await api.clearModuleFilter();
+                          } else {
+                            await api.setModuleFilter(next);
+                          }
+                        } catch {
+                          setModuleFilterState(moduleFilter);
+                        }
+                      }}
+                      className="bg-transparent border-0 p-0 cursor-pointer text-primary/60 hover:text-primary leading-none"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-text-muted italic">All modules</span>
+              )}
+            </div>
+            <input
+              type="text"
+              value={moduleInput}
+              onChange={(e) => setModuleInput(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === 'Enter' && moduleInput.trim()) {
+                  e.preventDefault();
+                  const mod = moduleInput.trim();
+                  if (!moduleFilter.includes(mod)) {
+                    const next = [...moduleFilter, mod];
+                    setModuleFilterState(next);
+                    setModuleInput('');
+                    try {
+                      await api.setModuleFilter(next);
+                    } catch {
+                      setModuleFilterState(moduleFilter);
+                    }
+                  } else {
+                    setModuleInput('');
+                  }
+                }
+              }}
+              placeholder="Add module..."
+              className="h-7 w-32 text-xs rounded-md border border-border-glass bg-bg px-2 text-text outline-none focus:border-primary transition-colors"
+              disabled={false}
+            />
+            {moduleFilter.length > 0 && (
+              <button
+                type="button"
+                onClick={async () => {
+                  setModuleFilterState([]);
+                  try {
+                    await api.clearModuleFilter();
+                  } catch {
+                    // ignore
+                  }
+                }}
+                className="text-xs text-text-secondary hover:text-danger transition-colors bg-transparent border-0 cursor-pointer"
+              >
+                Clear
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="bg-terminal-bg p-3 overflow-y-auto font-mono text-xs text-terminal-fg h-[60vh] min-h-[320px] max-h-[700px]">

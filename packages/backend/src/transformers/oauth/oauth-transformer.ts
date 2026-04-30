@@ -535,12 +535,12 @@ export class OAuthTransformer implements Transformer {
           typeof transformedPayload === 'string'
             ? transformedPayload
             : JSON.stringify(transformedPayload);
-        logger.info(`${this.name}: FULL-OUTGOING-PAYLOAD ${payloadStr}`);
+        logger.debug(`${this.name}: FULL-OUTGOING-PAYLOAD ${payloadStr}`);
         return transformedPayload;
       }
 
       const payloadStr = typeof payload === 'string' ? payload : JSON.stringify(payload);
-      logger.info(`${this.name}: FULL-OUTGOING-PAYLOAD ${payloadStr}`);
+      logger.debug(`${this.name}: FULL-OUTGOING-PAYLOAD ${payloadStr}`);
       return payload;
     };
 

@@ -7,6 +7,6 @@ export const requestLogger = async (request: FastifyRequest, reply: FastifyReply
   if (method === 'GET' || method === 'POST') {
     logger.debug(`${method} ${path}`);
   } else {
-    logger.info(`${method} ${path}`);
+    logger.debug(`${method} ${path}`);
   }
 };

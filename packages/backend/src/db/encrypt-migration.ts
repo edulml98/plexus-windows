@@ -24,7 +24,7 @@ export async function runEncryptionMigration(): Promise<void> {
     return;
   }
 
-  logger.info('Starting encryption migration for existing plaintext data...');
+  logger.debug('Starting encryption migration for existing plaintext data...');
 
   const db = getDatabase();
   const schema = getSchema();
@@ -45,7 +45,7 @@ export async function runEncryptionMigration(): Promise<void> {
         migratedCount++;
       }
     }
-    logger.info(`Encrypted ${migratedCount} API key(s)`);
+    logger.debug(`Encrypted ${migratedCount} API key(s)`);
   } catch (error) {
     logger.error('Failed to encrypt API keys:', error);
     throw error;
@@ -71,7 +71,7 @@ export async function runEncryptionMigration(): Promise<void> {
         oauthCount++;
       }
     }
-    logger.info(`Encrypted ${oauthCount} OAuth credential(s)`);
+    logger.debug(`Encrypted ${oauthCount} OAuth credential(s)`);
   } catch (error) {
     logger.error('Failed to encrypt OAuth credentials:', error);
     throw error;
@@ -108,7 +108,7 @@ export async function runEncryptionMigration(): Promise<void> {
         providerCount++;
       }
     }
-    logger.info(`Encrypted ${providerCount} provider(s)`);
+    logger.debug(`Encrypted ${providerCount} provider(s)`);
   } catch (error) {
     logger.error('Failed to encrypt providers:', error);
     throw error;
@@ -130,11 +130,11 @@ export async function runEncryptionMigration(): Promise<void> {
         }
       }
     }
-    logger.info(`Encrypted ${mcpCount} MCP server(s)`);
+    logger.debug(`Encrypted ${mcpCount} MCP server(s)`);
   } catch (error) {
     logger.error('Failed to encrypt MCP servers:', error);
     throw error;
   }
 
-  logger.info('Encryption migration completed successfully');
+  logger.debug('Encryption migration completed successfully');
 }

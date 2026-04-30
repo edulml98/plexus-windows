@@ -59,7 +59,7 @@ function applyBehavior(
 
     default: {
       // Runtime safety for unknown types (e.g. from older config files)
-      logger.warn(`[model-behaviors] Unknown behavior type: ${(behavior as any)?.type}`);
+      logger.warn(`Unknown behavior type: ${(behavior as any)?.type}`);
       return payload;
     }
   }
@@ -84,7 +84,7 @@ function applyStripAdaptiveThinking(
   const thinking = payload.thinking;
   if (thinking && typeof thinking === 'object' && thinking.type === 'adaptive') {
     logger.debug(
-      `[model-behaviors] strip_adaptive_thinking: removing thinking.type='adaptive' ` +
+      `strip_adaptive_thinking: removing thinking.type='adaptive' ` +
         `for alias '${ctx.canonicalModel}'`
     );
     const { thinking: _removed, ...rest } = payload;

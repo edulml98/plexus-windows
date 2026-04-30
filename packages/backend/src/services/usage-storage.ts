@@ -378,7 +378,7 @@ export class UsageStorageService extends EventEmitter {
   async deleteAllErrors(): Promise<boolean> {
     try {
       await this.ensureDb().delete(this.schema.inferenceErrors);
-      logger.info('Deleted all error logs');
+      logger.debug('Deleted all error logs');
       return true;
     } catch (error) {
       logger.error('Failed to delete all error logs', error);
@@ -458,7 +458,7 @@ export class UsageStorageService extends EventEmitter {
   async deleteAllDebugLogs(): Promise<boolean> {
     try {
       await this.ensureDb().delete(this.schema.debugLogs);
-      logger.info('Deleted all debug logs');
+      logger.debug('Deleted all debug logs');
       return true;
     } catch (error) {
       logger.error('Failed to delete all debug logs', error);
@@ -670,10 +670,10 @@ export class UsageStorageService extends EventEmitter {
         await this.ensureDb()
           .delete(this.schema.requestUsage)
           .where(lte(this.schema.requestUsage.date, beforeDate.toISOString()));
-        logger.info(`Deleted usage logs older than ${beforeDate.toISOString()}`);
+        logger.debug(`Deleted usage logs older than ${beforeDate.toISOString()}`);
       } else {
         await this.ensureDb().delete(this.schema.requestUsage);
-        logger.info('Deleted all usage logs');
+        logger.debug('Deleted all usage logs');
       }
       return true;
     } catch (error) {
@@ -690,7 +690,7 @@ export class UsageStorageService extends EventEmitter {
         sql`COALESCE(${this.schema.providerPerformance.canonicalModelName}, ${this.schema.providerPerformance.model}) = ${model}`
       );
 
-      logger.info(`Deleted performance data for model: ${model}`);
+      logger.debug(`Deleted performance data for model: ${model}`);
       return true;
     } catch (error) {
       logger.error(`Failed to delete performance data for model ${model}`, error);
@@ -964,7 +964,7 @@ export class UsageStorageService extends EventEmitter {
       let totalUpdated = 0;
       let offset = 0;
 
-      logger.info(`Recalculating energy for alias ${aliasSlug} (batched)`);
+      logger.debug(`Recalculating energy for alias ${aliasSlug} (batched)`);
 
       // Process in batches using limit+offset to avoid loading all rows into memory
       while (true) {
@@ -1020,7 +1020,7 @@ export class UsageStorageService extends EventEmitter {
       if (totalUpdated === 0) {
         logger.debug(`No requests found for alias ${aliasSlug}`);
       } else {
-        logger.info(`Recalculated energy for ${totalUpdated} requests for alias ${aliasSlug}`);
+        logger.debug(`Recalculated energy for ${totalUpdated} requests for alias ${aliasSlug}`);
       }
       return totalUpdated;
     } catch (error) {

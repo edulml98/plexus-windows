@@ -37,7 +37,7 @@ export async function registerQuotaEnforcementRoutes(
           message: 'Quota reset successfully',
         });
       } catch (error: any) {
-        logger.error('[QuotaEnforcement] Error clearing quota:', error);
+        logger.error('Error clearing quota:', error);
         return reply.code(500).send({
           error: {
             message: error.message || 'Internal server error',
@@ -118,7 +118,7 @@ export async function registerQuotaEnforcementRoutes(
           resets_at: result.resetsAt?.toISOString() ?? null,
         });
       } catch (error: any) {
-        logger.error('[QuotaEnforcement] Error getting quota status:', error);
+        logger.error('Error getting quota status:', error);
         return reply.code(500).send({
           error: {
             message: error.message || 'Internal server error',

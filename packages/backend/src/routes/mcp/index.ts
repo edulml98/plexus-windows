@@ -116,8 +116,8 @@ export async function registerMcpRoutes(
         const toolName = mcpProxyService.extractToolName(body);
         const isStreamed = false;
 
-        logger.silly(`[mcp] POST /mcp/${serverName} - requestId: ${requestId}`);
-        logger.silly(`[mcp] Request body: ${JSON.stringify(body)?.substring(0, 500)}`);
+        logger.silly(`POST /mcp/${serverName} - requestId: ${requestId}`);
+        logger.silly(`Request body: ${JSON.stringify(body)?.substring(0, 500)}`);
 
         const result = await mcpProxyService.proxyMcpRequest(
           serverName,
@@ -126,10 +126,10 @@ export async function registerMcpRoutes(
           body
         );
 
-        logger.silly(`[mcp] Proxy result status: ${result.status}`);
-        logger.silly(`[mcp] Proxy result body: ${JSON.stringify(result.body)?.substring(0, 500)}`);
-        logger.silly(`[mcp] Proxy result error: ${result.error}`);
-        logger.silly(`[mcp] Proxy result headers: ${JSON.stringify(result.headers)}`);
+        logger.silly(`Proxy result status: ${result.status}`);
+        logger.silly(`Proxy result body: ${JSON.stringify(result.body)?.substring(0, 500)}`);
+        logger.silly(`Proxy result error: ${result.error}`);
+        logger.silly(`Proxy result headers: ${JSON.stringify(result.headers)}`);
 
         const durationMs = Date.now() - startTime;
 
@@ -174,7 +174,7 @@ export async function registerMcpRoutes(
         }
 
         if (result.stream) {
-          logger.silly(`[mcp] Sending streaming response`);
+          logger.silly(`Sending streaming response`);
           reply.header('Content-Type', 'text/event-stream');
           reply.header('Cache-Control', 'no-cache');
           reply.header('Connection', 'keep-alive');
@@ -209,7 +209,7 @@ export async function registerMcpRoutes(
         );
         const isStreamed = true;
 
-        logger.silly(`[mcp] GET /mcp/${serverName} - requestId: ${requestId}`);
+        logger.silly(`GET /mcp/${serverName} - requestId: ${requestId}`);
 
         const result = await mcpProxyService.proxyMcpRequest(
           serverName,
@@ -292,7 +292,7 @@ export async function registerMcpRoutes(
         );
         const isStreamed = false;
 
-        logger.silly(`[mcp] DELETE /mcp/${serverName} - requestId: ${requestId}`);
+        logger.silly(`DELETE /mcp/${serverName} - requestId: ${requestId}`);
 
         const result = await mcpProxyService.proxyMcpRequest(
           serverName,

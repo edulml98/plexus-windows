@@ -42,7 +42,7 @@ export class DebugLoggingInspector extends BaseInspector {
         try {
           chunkStr = String(chunk);
         } catch (e) {
-          logger.warn(`[Inspector:${this.mode}] Failed to convert chunk to string`);
+          logger.warn(`[${this.mode}] Failed to convert chunk to string`);
           return;
         }
       }
@@ -52,9 +52,7 @@ export class DebugLoggingInspector extends BaseInspector {
       if (newSize > MAX_DEBUG_BUFFER_SIZE) {
         truncated = true;
         bodyChunks.push('\n\n[DEBUG OUTPUT TRUNCATED - Exceeded 10MB limit]');
-        logger.warn(
-          `[Inspector:Debug] Request ${this.requestId} debug output truncated at ${totalSize} bytes`
-        );
+        logger.warn(`Request ${this.requestId} debug output truncated at ${totalSize} bytes`);
         return;
       }
 
@@ -86,7 +84,7 @@ export class DebugLoggingInspector extends BaseInspector {
             reconstructed = this.reconstructOAuth(rawBody);
             break;
           default:
-            logger.warn(`[Inspector] Unknown providerApiType: ${providerApiType}`);
+            logger.warn(`Unknown providerApiType: ${providerApiType}`);
         }
         // Always save to memory for usage extraction/estimation
         this.saveReconstructedResponse(reconstructed);

@@ -125,7 +125,7 @@ async function main() {
       .where(eq(schema.apiKeys.id, row.id));
     totalReKeyed++;
   }
-  logger.info(`Re-keyed ${totalReKeyed} API key(s)`);
+  logger.warn(`Re-keyed ${totalReKeyed} API key(s)`);
 
   // ─── OAuth Credentials ──────────────────────────────────────────
   let oauthCount = 0;
@@ -146,7 +146,7 @@ async function main() {
       oauthCount++;
     }
   }
-  logger.info(`Re-keyed ${oauthCount} OAuth credential(s)`);
+  logger.warn(`Re-keyed ${oauthCount} OAuth credential(s)`);
 
   // ─── Providers ──────────────────────────────────────────────────
   let providerCount = 0;
@@ -171,7 +171,7 @@ async function main() {
       providerCount++;
     }
   }
-  logger.info(`Re-keyed ${providerCount} provider(s)`);
+  logger.warn(`Re-keyed ${providerCount} provider(s)`);
 
   // ─── MCP Servers ────────────────────────────────────────────────
   let mcpCount = 0;
@@ -188,9 +188,9 @@ async function main() {
       }
     }
   }
-  logger.info(`Re-keyed ${mcpCount} MCP server(s)`);
+  logger.warn(`Re-keyed ${mcpCount} MCP server(s)`);
 
-  logger.info(
+  logger.warn(
     `Re-key complete. Total: ${totalReKeyed + oauthCount + providerCount + mcpCount} record(s). ` +
       'Update your ENCRYPTION_KEY env var to the new key before restarting.'
   );

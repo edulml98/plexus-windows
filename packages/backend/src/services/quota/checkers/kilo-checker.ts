@@ -16,9 +16,10 @@ export default defineChecker({
   async check(ctx) {
     const apiKey = ctx.requireOption<string>('apiKey');
     const endpoint = ctx.getOption<string>('endpoint', 'https://api.kilo.ai/api/profile/balance');
-    const organizationId = ctx.getOption<string | undefined>('organizationId', undefined)?.trim() || undefined;
+    const organizationId =
+      ctx.getOption<string | undefined>('organizationId', undefined)?.trim() || undefined;
 
-    logger.silly(`[kilo] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const headers: Record<string, string> = {
       Authorization: `Bearer ${apiKey}`,
       'Content-Type': 'application/json',

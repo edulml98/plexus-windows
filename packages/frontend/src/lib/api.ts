@@ -267,6 +267,10 @@ export interface LoggingLevelState {
   ephemeral: boolean;
 }
 
+export interface ModuleFilterState {
+  modules: string[];
+}
+
 export interface Model {
   id: string;
   name: string;
@@ -2185,6 +2189,37 @@ export const api = {
         : ['error', 'warn', 'info', 'debug', 'verbose', 'silly'],
       ephemeral: !!json.ephemeral,
     };
+  },
+
+  getModuleFilter: async (): Promise<ModuleFilterState> => {
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/logging/modules`);
+    if (!res.ok) throw new Error('Failed to fetch module filter');
+    const json = (await res.json()) as ModuleFilterState;
+    return { modules: Array.isArray(json.modules) ? json.modules : [] };
+  },
+
+  setModuleFilter: async (modules: string[]): Promise<ModuleFilterState> => {
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/logging/modules`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ modules }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to set module filter');
+    }
+    const json = (await res.json()) as ModuleFilterState;
+    return { modules: Array.isArray(json.modules) ? json.modules : [] };
+  },
+
+  clearModuleFilter: async (): Promise<void> => {
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/logging/modules`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to clear module filter');
+    }
   },
 
   testModel: async (

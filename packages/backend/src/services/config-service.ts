@@ -65,7 +65,7 @@ export class ConfigService {
    */
   async initialize(): Promise<void> {
     await this.rebuildCache();
-    logger.info('ConfigService initialized from database');
+    logger.debug('ConfigService initialized from database');
   }
 
   /**
@@ -225,7 +225,7 @@ export class ConfigService {
         }
         await this.repo.saveProvider(slug, providerConfig as ProviderConfig);
       }
-      logger.info(`Imported ${Object.keys(parsed.providers).length} providers`);
+      logger.debug(`Imported ${Object.keys(parsed.providers).length} providers`);
     }
 
     // Import model aliases
@@ -233,7 +233,7 @@ export class ConfigService {
       for (const [slug, config] of Object.entries(parsed.models)) {
         await this.repo.saveAlias(slug, config as ModelConfig);
       }
-      logger.info(`Imported ${Object.keys(parsed.models).length} model aliases`);
+      logger.debug(`Imported ${Object.keys(parsed.models).length} model aliases`);
     }
 
     // Import API keys
@@ -241,7 +241,7 @@ export class ConfigService {
       for (const [name, config] of Object.entries(parsed.keys)) {
         await this.repo.saveKey(name, config as KeyConfig);
       }
-      logger.info(`Imported ${Object.keys(parsed.keys).length} API keys`);
+      logger.debug(`Imported ${Object.keys(parsed.keys).length} API keys`);
     }
 
     // Import user quotas
@@ -249,7 +249,7 @@ export class ConfigService {
       for (const [name, config] of Object.entries(parsed.user_quotas)) {
         await this.repo.saveUserQuota(name, config as QuotaDefinition);
       }
-      logger.info(`Imported ${Object.keys(parsed.user_quotas).length} user quotas`);
+      logger.debug(`Imported ${Object.keys(parsed.user_quotas).length} user quotas`);
     }
 
     // Import MCP servers
@@ -257,7 +257,7 @@ export class ConfigService {
       for (const [name, config] of Object.entries(parsed.mcp_servers)) {
         await this.repo.saveMcpServer(name, config as McpServerConfig);
       }
-      logger.info(`Imported ${Object.keys(parsed.mcp_servers).length} MCP servers`);
+      logger.debug(`Imported ${Object.keys(parsed.mcp_servers).length} MCP servers`);
     }
 
     // Import failover policy
@@ -272,7 +272,7 @@ export class ConfigService {
       if (failover.retryableErrors) {
         await this.repo.setSetting('failover.retryableErrors', failover.retryableErrors);
       }
-      logger.info('Imported failover policy');
+      logger.debug('Imported failover policy');
     }
 
     // Import cooldown policy
@@ -284,7 +284,7 @@ export class ConfigService {
       if (cooldown.maxMinutes !== undefined) {
         await this.repo.setSetting('cooldown.maxMinutes', cooldown.maxMinutes);
       }
-      logger.info('Imported cooldown policy');
+      logger.debug('Imported cooldown policy');
     }
 
     // Import exploration rates
@@ -324,7 +324,7 @@ export class ConfigService {
       }
     }
 
-    logger.info(`Imported OAuth credentials from auth.json`);
+    logger.debug(`Imported OAuth credentials from auth.json`);
   }
 
   /**

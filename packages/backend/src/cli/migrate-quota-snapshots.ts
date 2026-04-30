@@ -51,9 +51,9 @@ async function main() {
   const { inserted, skipped, totalSource } = await migrateLegacySnapshots();
 
   if (totalSource === 0) {
-    logger.info('Nothing to migrate.');
+    logger.debug('Nothing to migrate.');
   } else {
-    logger.info(`Migration complete. Inserted: ${inserted}, Skipped: ${skipped}`);
+    logger.debug(`Migration complete. Inserted: ${inserted}, Skipped: ${skipped}`);
   }
 }
 

@@ -2,10 +2,13 @@ import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   getCurrentLogLevel,
+  getModuleFilter,
   getStartupLogLevel,
   logger,
   resetCurrentLogLevel,
   setCurrentLogLevel,
+  setModuleFilter,
+  clearModuleFilter,
   SUPPORTED_LOG_LEVELS,
 } from '../../utils/logger';
 
@@ -65,5 +68,38 @@ export async function registerLoggingRoutes(fastify: FastifyInstance) {
       supportedLevels: SUPPORTED_LOG_LEVELS,
       ephemeral: true,
     });
+  });
+
+  // ─── Module Filter ──────────────────────────────────────────────
+
+  const setModulesSchema = z.object({
+    modules: z.array(z.string().min(1)),
+  });
+
+  fastify.get('/v0/management/logging/modules', async (_request, reply) => {
+    return reply.send({
+      modules: getModuleFilter(),
+    });
+  });
+
+  fastify.put('/v0/management/logging/modules', async (request, reply) => {
+    const parsed = setModulesSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        error: 'Invalid request body. Expected: { modules: string[] }',
+      });
+    }
+
+    setModuleFilter(parsed.data.modules);
+    const current = getModuleFilter();
+    logger.info(`Module filter set to [${current.join(', ')}] via management API`);
+
+    return reply.send({ modules: current });
+  });
+
+  fastify.delete('/v0/management/logging/modules', async (_request, reply) => {
+    clearModuleFilter();
+    logger.info('Module filter cleared via management API');
+    return reply.send({ modules: [] });
   });
 }

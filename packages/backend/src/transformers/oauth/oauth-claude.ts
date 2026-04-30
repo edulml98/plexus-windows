@@ -488,7 +488,7 @@ export function injectClaudeCodeSystemPrompt(payload: any, config: ClaudeOAuthCo
     typeof firstSystemText === 'string' &&
     firstSystemText.startsWith('x-anthropic-billing-header:')
   ) {
-    logger.debug('[oauth-claude] System prompt already injected, skipping');
+    logger.debug('System prompt already injected, skipping');
     return result;
   }
 
@@ -569,7 +569,7 @@ export function injectClaudeCodeSystemPrompt(payload: any, config: ClaudeOAuthCo
     }
   }
 
-  logger.debug('[oauth-claude] Injected Claude Code system prompt');
+  logger.debug('Injected Claude Code system prompt');
   return result;
 }
 
@@ -632,7 +632,7 @@ export function signAnthropicMessagesBody(body: any): any {
   const signedBillingHeader = unsignedBillingHeader.replace('cch=00000;', `cch=${cch};`);
   result.system[0].text = signedBillingHeader;
 
-  logger.debug('[oauth-claude] Signed request with CCH');
+  logger.debug('Signed request with CCH');
   return result;
 }
 
@@ -678,7 +678,7 @@ export function applyClaudeOAuthTransform(
     };
   }
 
-  logger.debug('[oauth-claude] Applying Claude OAuth transforms for token');
+  logger.debug('Applying Claude OAuth transforms for token');
 
   let result = JSON.parse(JSON.stringify(payload));
   let toolNamesRemapped = false;

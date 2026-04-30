@@ -22,10 +22,7 @@ function getEncoder(): Tiktoken | null {
     _encoder = getEncoding('o200k_base');
   } catch (err) {
     _encoderFailed = true;
-    logger.warn(
-      '[estimate-tokens] o200k_base encoder failed to load; falling back to heuristic',
-      err
-    );
+    logger.warn('o200k_base encoder failed to load; falling back to heuristic', err);
   }
   return _encoder;
 }
@@ -76,7 +73,7 @@ export function estimateTokens(text: string): number {
     try {
       return enc.encode(text).length;
     } catch (err) {
-      logger.debug('[estimate-tokens] encode failed, using heuristic', err);
+      logger.debug('encode failed, using heuristic', err);
     }
   }
   return estimateTokensHeuristic(text);
@@ -403,7 +400,7 @@ function tokensForStringOrJson(value: unknown): number {
     // bugs would. Fail closed so enforcement rejects the request rather than
     // silently letting an un-counted payload through. Matches the same
     // sentinel used at the top-level catch in estimateInputTokens.
-    logger.error('[estimate-tokens] tokensForStringOrJson failed; failing closed', err);
+    logger.error('tokensForStringOrJson failed; failing closed', err);
     return Number.MAX_SAFE_INTEGER;
   }
 }

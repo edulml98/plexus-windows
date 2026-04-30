@@ -19,7 +19,7 @@ export default defineChecker({
     const apiKey = ctx.requireOption<string>('apiKey');
     const endpoint = ctx.getOption<string>('endpoint', 'https://openrouter.ai/api/v1/credits');
 
-    logger.silly(`[openrouter] Calling ${endpoint}`);
+    logger.silly(`Calling ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {

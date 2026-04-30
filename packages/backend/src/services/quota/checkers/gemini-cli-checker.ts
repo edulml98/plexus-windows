@@ -19,15 +19,19 @@ interface GeminiQuotaResponse {
   userQuota?: { buckets?: GeminiBucket[] };
 }
 
-async function resolveApiKey(ctx: { getOption<T>(key: string, def: T): T; checkerId: string }): Promise<string> {
+async function resolveApiKey(ctx: {
+  getOption<T>(key: string, def: T): T;
+  checkerId: string;
+}): Promise<string> {
   const configuredApiKey = ctx.getOption<string>('apiKey', '').trim();
   if (configuredApiKey) return configuredApiKey;
 
-  const provider = ctx.getOption<string>('oauthProvider', 'google-gemini-cli').trim() || 'google-gemini-cli';
+  const provider =
+    ctx.getOption<string>('oauthProvider', 'google-gemini-cli').trim() || 'google-gemini-cli';
   const oauthAccountId = ctx.getOption<string>('oauthAccountId', '').trim();
   const authManager = OAuthAuthManager.getInstance();
 
-  logger.debug(`[gemini-cli-checker] resolveApiKey for '${ctx.checkerId}'`);
+  logger.debug(`resolveApiKey for '${ctx.checkerId}'`);
 
   let apiKeyResult: string;
   try {
@@ -36,14 +40,18 @@ async function resolveApiKey(ctx: { getOption<T>(key: string, def: T): T; checke
       : await authManager.getApiKey(provider as OAuthProvider);
   } catch {
     authManager.reload();
-    logger.info(`[gemini-cli-checker] Reloaded OAuth auth file and retrying for provider '${provider}'.`);
+    logger.info(`Reloaded OAuth auth file and retrying for provider '${provider}'.`);
     apiKeyResult = oauthAccountId
       ? await authManager.getApiKey(provider as OAuthProvider, oauthAccountId)
       : await authManager.getApiKey(provider as OAuthProvider);
   }
 
   // Handle object or JSON-encoded token from pi-ai
-  if (typeof apiKeyResult === 'object' && apiKeyResult !== null && 'token' in (apiKeyResult as object)) {
+  if (
+    typeof apiKeyResult === 'object' &&
+    apiKeyResult !== null &&
+    'token' in (apiKeyResult as object)
+  ) {
     return (apiKeyResult as { token: string }).token;
   }
   if (typeof apiKeyResult === 'string' && apiKeyResult.startsWith('{')) {
@@ -72,9 +80,12 @@ export default defineChecker({
   }),
   async check(ctx) {
     const apiKey = await resolveApiKey(ctx);
-    const endpoint = ctx.getOption<string>('endpoint', 'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota');
+    const endpoint = ctx.getOption<string>(
+      'endpoint',
+      'https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuota'
+    );
 
-    logger.silly(`[gemini-cli-checker] Requesting quota from ${endpoint}`);
+    logger.silly(`Requesting quota from ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
@@ -82,7 +93,8 @@ export default defineChecker({
     });
 
     const bodyText = await response.text();
-    if (!response.ok) throw new Error(`quota request failed with status ${response.status}: ${bodyText}`);
+    if (!response.ok)
+      throw new Error(`quota request failed with status ${response.status}: ${bodyText}`);
 
     let data: GeminiQuotaResponse;
     try {
@@ -93,7 +105,7 @@ export default defineChecker({
 
     const buckets = extractBuckets(data);
     if (!buckets || buckets.length === 0) {
-      logger.debug(`[gemini-cli-checker] No buckets found in response`);
+      logger.debug(`No buckets found in response`);
       return [];
     }
 

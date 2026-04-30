@@ -221,14 +221,14 @@ export class Dispatcher {
       const aliasConfig = route.canonicalModel ? config.models?.[route.canonicalModel] : undefined;
       const hasImages = VisionDescriptorService.hasImages(currentRequest.messages);
       logger.debug(
-        `[vision-fallthrough] Checking: canonicalModel='${route.canonicalModel}', use_image_fallthrough='${aliasConfig?.use_image_fallthrough}', hasImages='${hasImages}', isVisionDescriptorRequest='${isVisionDescriptorRequest}'`
+        `Checking: canonicalModel='${route.canonicalModel}', use_image_fallthrough='${aliasConfig?.use_image_fallthrough}', hasImages='${hasImages}', isVisionDescriptorRequest='${isVisionDescriptorRequest}'`
       );
       if (!isVisionDescriptorRequest && aliasConfig?.use_image_fallthrough && hasImages) {
         const vfConfig = config.vision_fallthrough;
         if (vfConfig?.descriptor_model) {
           try {
             logger.debug(
-              `[vision-fallthrough] Before process: ${JSON.stringify(currentRequest.messages.map((m) => ({ role: m.role, contentCount: Array.isArray(m.content) ? m.content.length : 'string' })))}`
+              `Before process: ${JSON.stringify(currentRequest.messages.map((m) => ({ role: m.role, contentCount: Array.isArray(m.content) ? m.content.length : 'string' })))}`
             );
             currentRequest = await VisionDescriptorService.process(
               currentRequest,
@@ -237,29 +237,27 @@ export class Dispatcher {
               this.usageStorage // Pass usage storage to record descriptor call
             );
             logger.debug(
-              `[vision-fallthrough] After process: ${JSON.stringify(currentRequest.messages.map((m) => ({ role: m.role, contentCount: Array.isArray(m.content) ? m.content.length : 'string' })))}`
+              `After process: ${JSON.stringify(currentRequest.messages.map((m) => ({ role: m.role, contentCount: Array.isArray(m.content) ? m.content.length : 'string' })))}`
             );
 
             // Verify if images are actually gone in the modified request
             const stillHasImages = VisionDescriptorService.hasImages(currentRequest.messages);
             if (stillHasImages) {
               logger.error(
-                `[vision-fallthrough] CRITICAL: VisionDescriptorService.process returned a request that STILL contains images!`
+                `CRITICAL: VisionDescriptorService.process returned a request that STILL contains images!`
               );
             }
 
             // Tag the request as having undergone fallthrough
             (currentRequest as any)._hasVisionFallthrough = true;
             (currentRequest as any)._visionFallthroughModel = vfConfig.descriptor_model;
-            logger.info(
-              `[vision-fallthrough] Successfully preprocessed images for ${route.provider}/${route.model}`
-            );
+            logger.debug(`Successfully preprocessed images for ${route.provider}/${route.model}`);
           } catch (vfError) {
-            logger.error(`[vision-fallthrough] Error in descriptor service:`, vfError);
+            logger.error(`Error in descriptor service:`, vfError);
           }
         } else {
           logger.warn(
-            `[vision-fallthrough] Feature enabled for alias '${request.model}' but 'vision_fallthrough.descriptor_model' not configured globally.`
+            `Feature enabled for alias '${request.model}' but 'vision_fallthrough.descriptor_model' not configured globally.`
           );
         }
       }

@@ -50,7 +50,7 @@ function validateUrlSafety(url: string): { valid: boolean; error?: string } {
 
   // Private networks are allowed (trusted admin model)
   // Admins may use Ollama or other services on private networks
-  logger.debug(`[providers] Fetch request to: ${hostname}`);
+  logger.debug(`Fetch request to: ${hostname}`);
 
   return { valid: true };
 }
@@ -89,7 +89,7 @@ function normalizeModelsResponse(data: any): { data: any[] } {
 
   // Unknown format - wrap in data array
   if (data && !data.data && !data.models) {
-    logger.warn('[providers] Unknown models response format, wrapping in data array');
+    logger.warn('Unknown models response format, wrapping in data array');
     return { data: [data] };
   }
 
@@ -135,7 +135,7 @@ export async function registerProviderRoutes(fastify: FastifyInstance) {
         requestHeaders['Authorization'] = `Bearer ${apiKey}`;
       }
 
-      logger.debug(`[providers] Fetching models from ${url}`);
+      logger.debug(`Fetching models from ${url}`);
 
       // Make the fetch request with timeout
       const controller = new AbortController();
@@ -153,7 +153,7 @@ export async function registerProviderRoutes(fastify: FastifyInstance) {
 
         if (!response.ok) {
           const errorText = await response.text().catch(() => 'Unknown error');
-          logger.error(`[providers] Fetch failed: ${response.status} ${response.statusText}`);
+          logger.error(`Fetch failed: ${response.status} ${response.statusText}`);
           return reply.code(response.status).send({
             error: {
               message: `Provider returned ${response.status}: ${response.statusText}`,
@@ -169,7 +169,7 @@ export async function registerProviderRoutes(fastify: FastifyInstance) {
         // Normalize response format (handles both OpenAI and Ollama)
         const normalized = normalizeModelsResponse(data);
 
-        logger.debug(`[providers] Fetched ${normalized.data.length} models from ${url}`);
+        logger.debug(`Fetched ${normalized.data.length} models from ${url}`);
         return reply.send(normalized);
       } catch (fetchError) {
         clearTimeout(timeoutId);
@@ -178,7 +178,7 @@ export async function registerProviderRoutes(fastify: FastifyInstance) {
     } catch (error) {
       if (error instanceof Error) {
         if (error.name === 'AbortError') {
-          logger.error(`[providers] Request timeout for ${url}`);
+          logger.error(`Request timeout for ${url}`);
           return reply.code(504).send({
             error: {
               message: 'Request timed out after 10 seconds',
@@ -187,7 +187,7 @@ export async function registerProviderRoutes(fastify: FastifyInstance) {
             },
           });
         }
-        logger.error(`[providers] Fetch error: ${error.message}`);
+        logger.error(`Fetch error: ${error.message}`);
         return reply.code(500).send({
           error: {
             message: error.message,
@@ -196,7 +196,7 @@ export async function registerProviderRoutes(fastify: FastifyInstance) {
           },
         });
       }
-      logger.error('[providers] Unknown fetch error', error);
+      logger.error('Unknown fetch error', error);
       return reply.code(500).send({
         error: {
           message: 'An unexpected error occurred',

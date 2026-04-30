@@ -33,9 +33,7 @@ export class VisionDescriptorService {
     const images = this.extractImages(request.messages);
     if (images.length === 0) return request;
 
-    logger.info(
-      `[vision-fallthrough] Describing ${images.length} images using model '${descriptorModel}'`
-    );
+    logger.debug(`Describing ${images.length} images using model '${descriptorModel}'`);
 
     // Concurrent execution of all image descriptions
     const descriptions = await Promise.all(
@@ -61,9 +59,7 @@ export class VisionDescriptorService {
       if (Array.isArray(msg.content)) {
         for (const block of msg.content) {
           if (block.type === 'image_url' || (block as any).type === 'image') {
-            logger.debug(
-              `[vision-fallthrough] Found image block: type=${block.type || (block as any).type}`
-            );
+            logger.debug(`Found image block: type=${block.type || (block as any).type}`);
             return true;
           }
         }
@@ -86,15 +82,13 @@ export class VisionDescriptorService {
               const mediaType = source.media_type || 'image/png';
               urls.push(`data:${mediaType};base64,${source.data}`);
             } else {
-              logger.warn(
-                '[vision-fallthrough] Found Anthropic image block but missing source.data'
-              );
+              logger.warn('Found Anthropic image block but missing source.data');
             }
           }
         }
       }
     }
-    logger.debug(`[vision-fallthrough] Extracted ${urls.length} images for description`);
+    logger.debug(`Extracted ${urls.length} images for description`);
     return urls;
   }
 
@@ -149,7 +143,7 @@ export class VisionDescriptorService {
     const requestId: string = (descriptorRequest as any).requestId;
 
     try {
-      logger.debug(`[vision-fallthrough] Dispatching description request to model '${model}'`);
+      logger.debug(`Dispatching description request to model '${model}'`);
       const response = await dispatcher.dispatch(descriptorRequest);
       const durationMs = Date.now() - startTime;
       const description = response.content;
@@ -198,19 +192,19 @@ export class VisionDescriptorService {
         }
 
         usageStorage.saveRequest(usageRecord).catch((err) => {
-          logger.error(`[vision-fallthrough] Failed to save descriptor usage record: ${err}`);
+          logger.error(`Failed to save descriptor usage record: ${err}`);
         });
       }
 
       if (!description) {
-        logger.warn(`[vision-fallthrough] Model ${model} returned empty description for image`);
+        logger.warn(`Model ${model} returned empty description for image`);
         return 'No description available.';
       }
 
-      logger.debug(`[vision-fallthrough] Received description (${description.length} chars)`);
+      logger.debug(`Received description (${description.length} chars)`);
       return description;
     } catch (error) {
-      logger.error(`[vision-fallthrough] Error describing image with ${model}:`, error);
+      logger.error(`Error describing image with ${model}:`, error);
 
       if (usageStorage) {
         const durationMs = Date.now() - startTime;
@@ -266,9 +260,7 @@ export class VisionDescriptorService {
       const newContent = msg.content.map((block) => {
         if (block.type === 'image_url' || (block as any).type === 'image') {
           const desc = descriptions[descIdx++] || 'No description available.';
-          logger.debug(
-            `[vision-fallthrough] Replacing image block with description (length: ${desc.length})`
-          );
+          logger.debug(`Replacing image block with description (length: ${desc.length})`);
           return {
             type: 'text',
             text: `[Image Description: ${desc}]`,
@@ -280,7 +272,7 @@ export class VisionDescriptorService {
       return { ...msg, content: newContent };
     });
 
-    logger.debug(`[vision-fallthrough] injectDescriptions finished. Replaced ${descIdx} images.`);
+    logger.debug(`injectDescriptions finished. Replaced ${descIdx} images.`);
     return result;
   }
 }

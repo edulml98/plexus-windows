@@ -35,7 +35,7 @@ export async function registerPerformanceRoutes(
       return reply.status(400).send({ error: 'Model parameter is required' });
     }
 
-    logger.info('Deleting performance data for model', { model });
+    logger.debug('Deleting performance data for model', { model });
 
     const success = await usageStorage.deletePerformanceByModel(model);
 

@@ -56,21 +56,21 @@ export class QuotaEnforcer {
     // Get key configuration
     const keyConfig = config.keys?.[keyName];
     if (!keyConfig) {
-      logger.debug(`[QuotaEnforcer] Key ${keyName} not found`);
+      logger.debug(`Key ${keyName} not found`);
       return null;
     }
 
     // Check if key has a quota assigned
     const quotaName = keyConfig.quota;
     if (!quotaName) {
-      logger.debug(`[QuotaEnforcer] No quota assigned to key ${keyName}`);
+      logger.debug(`No quota assigned to key ${keyName}`);
       return null;
     }
 
     // Get quota definition
     const quotaDef = config.user_quotas?.[quotaName];
     if (!quotaDef) {
-      logger.warn(`[QuotaEnforcer] Quota definition ${quotaName} not found for key ${keyName}`);
+      logger.warn(`Quota definition ${quotaName} not found for key ${keyName}`);
       return null;
     }
 
@@ -88,10 +88,10 @@ export class QuotaEnforcer {
     if (existingState.length > 0) {
       const s = existingState[0]!;
       logger.debug(
-        `[QuotaEnforcer] checkQuota DB state for ${keyName}: currentUsage=${s.currentUsage}, windowStart=${JSON.stringify(s.windowStart)}, lastUpdated=${JSON.stringify(s.lastUpdated)}, quotaName=${s.quotaName}, limitType=${s.limitType}`
+        `checkQuota DB state for ${keyName}: currentUsage=${s.currentUsage}, windowStart=${JSON.stringify(s.windowStart)}, lastUpdated=${JSON.stringify(s.lastUpdated)}, quotaName=${s.quotaName}, limitType=${s.limitType}`
       );
     } else {
-      logger.debug(`[QuotaEnforcer] checkQuota: no DB state found for ${keyName}`);
+      logger.debug(`checkQuota: no DB state found for ${keyName}`);
     }
 
     let currentUsage: number;
@@ -122,8 +122,8 @@ export class QuotaEnforcer {
 
       // Check if quota name has changed (key assigned to different quota)
       if (storedQuotaName !== quotaName) {
-        logger.info(
-          `[QuotaEnforcer] Quota name changed for ${keyName} from '${storedQuotaName}' to '${quotaName}'. ` +
+        logger.debug(
+          `Quota name changed for ${keyName} from '${storedQuotaName}' to '${quotaName}'. ` +
             `Resetting usage — persisting to DB.`
         );
         currentUsage = 0;
@@ -159,8 +159,8 @@ export class QuotaEnforcer {
           .where(eq(schema.quotaState.keyName, keyName));
         // Check if quota definition has changed (e.g., requests -> tokens)
       } else if (storedLimitType !== quotaDef.limitType) {
-        logger.info(
-          `[QuotaEnforcer] Quota ${quotaName} limitType changed from ${storedLimitType} to ${quotaDef.limitType}. ` +
+        logger.debug(
+          `Quota ${quotaName} limitType changed from ${storedLimitType} to ${quotaDef.limitType}. ` +
             `Resetting usage for ${keyName} — persisting to DB.`
         );
         currentUsage = 0;
@@ -200,14 +200,12 @@ export class QuotaEnforcer {
         ) {
           const expectedWindowStart = this.getWindowStart(quotaDef.type);
           logger.debug(
-            `[QuotaEnforcer] checkQuota calendar check for ${keyName}: windowStartFromDB=${windowStartDate?.getTime()}, expectedWindowStart=${expectedWindowStart}, match=${windowStartDate?.getTime() === expectedWindowStart}`
+            `checkQuota calendar check for ${keyName}: windowStartFromDB=${windowStartDate?.getTime()}, expectedWindowStart=${expectedWindowStart}, match=${windowStartDate?.getTime() === expectedWindowStart}`
           );
           if (!windowStartDate || windowStartDate.getTime() !== expectedWindowStart) {
             // Window has reset — persist the reset to the DB so recordUsage
             // doesn't keep accumulating on top of stale values
-            logger.debug(
-              `[QuotaEnforcer] Calendar quota ${quotaName} for ${keyName} reset — persisting to DB`
-            );
+            logger.debug(`Calendar quota ${quotaName} for ${keyName} reset — persisting to DB`);
             currentUsage = 0;
             windowStartDate = new Date(expectedWindowStart);
             lastUpdatedDate = nowDate;
@@ -226,7 +224,7 @@ export class QuotaEnforcer {
           const durationMs = parseDuration(quotaDef.duration);
           if (!durationMs) {
             logger.warn(
-              `[QuotaEnforcer] Invalid duration '${quotaDef.duration}' for rolling quota ${quotaName}. ` +
+              `Invalid duration '${quotaDef.duration}' for rolling quota ${quotaName}. ` +
                 `Cannot calculate quota leak. Allowing request (fail-open). ` +
                 `Please fix the duration in your config (e.g., '1h', '30m', '1d').`
             );
@@ -243,7 +241,7 @@ export class QuotaEnforcer {
               // Window expired or not set - reset and persist to DB
               const alignedStart = this.alignToPeriodStart(nowMs, durationMs);
               logger.debug(
-                `[QuotaEnforcer] Rolling cost quota ${quotaName} for ${keyName} reset (window expired), aligned to ${new Date(alignedStart).toISOString()} — persisting to DB`
+                `Rolling cost quota ${quotaName} for ${keyName} reset (window expired), aligned to ${new Date(alignedStart).toISOString()} — persisting to DB`
               );
               currentUsage = 0;
               windowStartDate = new Date(alignedStart);
@@ -290,7 +288,7 @@ export class QuotaEnforcer {
         }
       } else {
         logger.warn(
-          `[QuotaEnforcer] Cannot calculate resetsAt for quota ${quotaName}: invalid duration '${quotaDef.duration}'`
+          `Cannot calculate resetsAt for quota ${quotaName}: invalid duration '${quotaDef.duration}'`
         );
       }
     } else if (quotaDef.type === 'daily') {
@@ -331,9 +329,9 @@ export class QuotaEnforcer {
     };
 
     logger.debug(
-      `[QuotaEnforcer] Quota check result for ${keyName}: currentUsage=${result.currentUsage}, remaining=${result.remaining}, allowed=${result.allowed}`
+      `Quota check result for ${keyName}: currentUsage=${result.currentUsage}, remaining=${result.remaining}, allowed=${result.allowed}`
     );
-    logger.debug(`[QuotaEnforcer] Quota check for ${keyName}:`, result);
+    logger.debug(`Quota check for ${keyName}:`, result);
 
     return result;
   }
@@ -345,13 +343,13 @@ export class QuotaEnforcer {
     const config = getConfig();
 
     logger.debug(
-      `[QuotaEnforcer] recordUsage called for ${keyName}: costTotal=${usageRecord.costTotal}, tokensInput=${usageRecord.tokensInput}, tokensOutput=${usageRecord.tokensOutput}`
+      `recordUsage called for ${keyName}: costTotal=${usageRecord.costTotal}, tokensInput=${usageRecord.tokensInput}, tokensOutput=${usageRecord.tokensOutput}`
     );
 
     // Get key configuration
     const keyConfig = config.keys?.[keyName];
     if (!keyConfig?.quota) {
-      logger.debug(`[QuotaEnforcer] recordUsage: no quota assigned for key ${keyName}, skipping`);
+      logger.debug(`recordUsage: no quota assigned for key ${keyName}, skipping`);
       return; // No quota assigned, nothing to record
     }
 
@@ -359,7 +357,7 @@ export class QuotaEnforcer {
     const quotaDef = config.user_quotas?.[keyConfig.quota];
     if (!quotaDef) {
       logger.debug(
-        `[QuotaEnforcer] recordUsage: quota definition ${keyConfig.quota} not found for key ${keyName}, skipping`
+        `recordUsage: quota definition ${keyConfig.quota} not found for key ${keyName}, skipping`
       );
       return;
     }
@@ -372,7 +370,7 @@ export class QuotaEnforcer {
       // cost: use costTotal directly
       usageValue = usageRecord.costTotal || 0;
       logger.debug(
-        `[QuotaEnforcer] recordUsage cost calculation: costTotal=${usageRecord.costTotal}, usageValue=${usageValue}`
+        `recordUsage cost calculation: costTotal=${usageRecord.costTotal}, usageValue=${usageValue}`
       );
     } else {
       // tokens: sum of input + output
@@ -426,12 +424,12 @@ export class QuotaEnforcer {
       let newUsage: number;
       if (storedQuotaName !== keyConfig.quota) {
         logger.debug(
-          `[QuotaEnforcer] Quota name changed for ${keyName} from '${storedQuotaName}' to '${keyConfig.quota}' in recordUsage`
+          `Quota name changed for ${keyName} from '${storedQuotaName}' to '${keyConfig.quota}' in recordUsage`
         );
         newUsage = usageValue; // Start fresh with just this request's usage
       } else if (storedLimitType !== quotaDef.limitType) {
         logger.debug(
-          `[QuotaEnforcer] Quota ${keyConfig.quota} limitType changed from ${storedLimitType} to ${quotaDef.limitType} in recordUsage`
+          `Quota ${keyConfig.quota} limitType changed from ${storedLimitType} to ${quotaDef.limitType} in recordUsage`
         );
         newUsage = usageValue; // Start fresh with just this request's usage
       } else {
@@ -449,9 +447,7 @@ export class QuotaEnforcer {
               // Check if window has expired
               if (!windowStart || elapsedMs >= durationMs) {
                 // Window expired - start fresh with just this request's usage
-                logger.debug(
-                  `[QuotaEnforcer] Rolling cost quota window expired for ${keyName}, resetting`
-                );
+                logger.debug(`Rolling cost quota window expired for ${keyName}, resetting`);
                 newUsage = usageValue;
                 // Update windowStart below
               }
@@ -464,7 +460,7 @@ export class QuotaEnforcer {
             }
           } else {
             logger.warn(
-              `[QuotaEnforcer] Invalid duration '${quotaDef.duration}' for rolling quota ${keyConfig.quota}. ` +
+              `Invalid duration '${quotaDef.duration}' for rolling quota ${keyConfig.quota}. ` +
                 `Recording usage without leak calculation. Usage will accumulate without decay. ` +
                 `Please fix the duration in your config (e.g., '1h', '30m', '1d').`
             );
@@ -512,9 +508,7 @@ export class QuotaEnforcer {
         .where(eq(schema.quotaState.keyName, keyName));
     }
 
-    logger.debug(
-      `[QuotaEnforcer] Recorded ${usageValue} ${quotaDef.limitType} usage for ${keyName}`
-    );
+    logger.debug(`Recorded ${usageValue} ${quotaDef.limitType} usage for ${keyName}`);
   }
 
   /**
@@ -532,7 +526,7 @@ export class QuotaEnforcer {
       })
       .where(eq(schema.quotaState.keyName, keyName));
 
-    logger.info(`[QuotaEnforcer] Quota cleared for ${keyName}`);
+    logger.debug(`Quota cleared for ${keyName}`);
   }
 
   /**

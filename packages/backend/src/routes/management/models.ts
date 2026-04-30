@@ -26,7 +26,7 @@ export async function registerModelRoutes(fastify: FastifyInstance) {
           });
         }
 
-        logger.debug(`[Management] Fetching HuggingFace model architecture for: ${modelId}`);
+        logger.debug(`Fetching HuggingFace model architecture for: ${modelId}`);
 
         const fetcher = HuggingFaceModelFetcher.getInstance();
         const result = await fetcher.getModelParams(modelId);
@@ -56,7 +56,7 @@ export async function registerModelRoutes(fastify: FastifyInstance) {
           },
         });
       } catch (error) {
-        logger.error(`[Management] Error fetching model architecture: ${error}`);
+        logger.error(`Error fetching model architecture: ${error}`);
         return reply.code(500).send({
           error: {
             message: error instanceof Error ? error.message : 'Internal server error',

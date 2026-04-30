@@ -5,14 +5,14 @@ import { logger } from '../../../utils/logger';
 function extractUsage(html: string, label: string): { percent: number; resetsAt?: string } | null {
   const labelIndex = html.indexOf(label);
   if (labelIndex === -1) {
-    logger.debug(`[ollama] Label "${label}" not found in HTML`);
+    logger.debug(`Label "${label}" not found in HTML`);
     return null;
   }
 
   const snippet = html.slice(labelIndex, labelIndex + 1000);
   const percentMatch = snippet.match(/style="width:\s*([\d.]+)%"/);
   if (!percentMatch) {
-    logger.debug(`[ollama] Could not extract usage percent for ${label}`);
+    logger.debug(`Could not extract usage percent for ${label}`);
     return null;
   }
 
@@ -20,7 +20,7 @@ function extractUsage(html: string, label: string): { percent: number; resetsAt?
   const resetMatch = snippet.match(/data-time="([^"]+)"/);
   const resetsAt = resetMatch ? new Date(resetMatch[1]!).toISOString() : undefined;
 
-  logger.silly(`[ollama] ${label}: ${percent}%, resets at ${resetsAt}`);
+  logger.silly(`${label}: ${percent}%, resets at ${resetsAt}`);
   return { percent, resetsAt };
 }
 
@@ -34,11 +34,12 @@ export default defineChecker({
     const sessionCookie = ctx.requireOption<string>('sessionCookie');
     const endpoint = ctx.getOption<string>('endpoint', 'https://ollama.com/settings');
 
-    logger.debug(`[ollama] Fetching ${endpoint}`);
+    logger.debug(`Fetching ${endpoint}`);
     const response = await fetch(endpoint, {
       method: 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
+        'User-Agent':
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36',
         Accept: 'text/html',
         'Accept-Language': 'en-US,en;q=0.9',
         Cookie: `__Secure-session=${sessionCookie}`,
@@ -89,7 +90,8 @@ export default defineChecker({
       );
     }
 
-    if (meters.length === 0) throw new Error('Could not parse usage data from Ollama settings page');
+    if (meters.length === 0)
+      throw new Error('Could not parse usage data from Ollama settings page');
 
     return meters;
   },

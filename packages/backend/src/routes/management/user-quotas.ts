@@ -20,7 +20,7 @@ export async function registerUserQuotaRoutes(fastify: FastifyInstance) {
         const quotas = await configService.getRepository().getAllUserQuotas();
         return reply.send(quotas);
       } catch (error: any) {
-        logger.error('[UserQuota] Error listing quotas:', error);
+        logger.error('Error listing quotas:', error);
         return reply.code(500).send({
           error: {
             message: error.message || 'Internal server error',
@@ -54,7 +54,7 @@ export async function registerUserQuotaRoutes(fastify: FastifyInstance) {
 
         return reply.send({ name, ...quota });
       } catch (error: any) {
-        logger.error('[UserQuota] Error getting quota:', error);
+        logger.error('Error getting quota:', error);
         return reply.code(500).send({
           error: {
             message: error.message || 'Internal server error',
@@ -94,10 +94,10 @@ export async function registerUserQuotaRoutes(fastify: FastifyInstance) {
 
       try {
         await configService.saveUserQuota(name, result.data);
-        logger.info(`[UserQuota] Quota '${name}' saved via API (PUT)`);
+        logger.debug(`Quota '${name}' saved via API (PUT)`);
         return reply.send({ success: true, name, quota: result.data });
       } catch (e: any) {
-        logger.error(`[UserQuota] Failed to save quota`, e);
+        logger.error(`Failed to save quota`, e);
         return reply.code(500).send({ error: { message: e.message, type: 'server_error' } });
       }
     }
@@ -133,10 +133,10 @@ export async function registerUserQuotaRoutes(fastify: FastifyInstance) {
         }
 
         await configService.saveUserQuota(name, result.data);
-        logger.info(`[UserQuota] Quota '${name}' updated via API (PATCH)`);
+        logger.debug(`Quota '${name}' updated via API (PATCH)`);
         return reply.send({ success: true, name, quota: result.data });
       } catch (e: any) {
-        logger.error(`[UserQuota] Failed to update quota`, e);
+        logger.error(`Failed to update quota`, e);
         return reply.code(500).send({ error: { message: e.message, type: 'server_error' } });
       }
     }
@@ -178,7 +178,7 @@ export async function registerUserQuotaRoutes(fastify: FastifyInstance) {
         }
 
         await configService.deleteUserQuota(name);
-        logger.info(`[UserQuota] Quota '${name}' deleted via API`);
+        logger.debug(`Quota '${name}' deleted via API`);
 
         return reply.send({
           success: true,
@@ -186,7 +186,7 @@ export async function registerUserQuotaRoutes(fastify: FastifyInstance) {
           message: `Quota '${name}' deleted successfully`,
         });
       } catch (e: any) {
-        logger.error(`[UserQuota] Failed to delete quota`, e);
+        logger.error(`Failed to delete quota`, e);
         return reply.code(500).send({
           error: {
             message: e.message,
