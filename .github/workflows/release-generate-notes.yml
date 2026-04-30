@@ -22,75 +22,88 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      - name: Get previous release tag
-        id: prev_tag
-        run: |
-          CURRENT_TAG="${{ inputs.tag }}"
-          CURRENT_SHA=$(git rev-parse "${CURRENT_TAG}^{}")
-          CURRENT_DATE=$(git log -1 --format=%ci "${CURRENT_SHA}")
-
-          PREV_TAG=""
-          for tag in $(git tag --sort=-creatordate --list "[0-9]*.[0-9]*.[0-9]*.[0-9]*" "v*.*.*" 2>/dev/null); do
-            if [ "$tag" = "$CURRENT_TAG" ]; then continue; fi
-            tag_sha=$(git rev-parse "${tag}^{}" 2>/dev/null || true)
-            [ -z "$tag_sha" ] && continue
-            tag_date=$(git log -1 --format=%ci "${tag_sha}")
-            if [ "$tag_date" '<' "$CURRENT_DATE" ]; then
-              PREV_TAG="$tag"
-              break
-            fi
-          done
-
-          echo "Previous release tag: $PREV_TAG"
-          echo "tag=$PREV_TAG" >> "$GITHUB_OUTPUT"
-          echo "current_tag=$CURRENT_TAG" >> "$GITHUB_OUTPUT"
-          echo "current_sha=$CURRENT_SHA" >> "$GITHUB_OUTPUT"
-          if [ -n "$PREV_TAG" ]; then
-            echo "prev_sha=$(git rev-parse "${PREV_TAG}^{}")" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Gather commits and PR info
-        id: commits
+      - name: Gather release context via GitHub API
+        id: context
         uses: actions/github-script@v9
         with:
           script: |
-            const { data: comparison } = await github.rest.repos.compareCommits({
+            const currentTag = '${{ inputs.tag }}';
+
+            // ── 1. Find the previous CalVer release using GitHub's Releases API ──
+            // This is immune to git history rewrites/rebases: GitHub tracks releases
+            // as server-side objects keyed by publish time, not by git ancestry.
+            const calverRe = /^\d{4}\.\d{2}\.\d{2}\.\d+$/;
+
+            const { data: releases } = await github.rest.repos.listReleases({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              base: '${{ steps.prev_tag.outputs.tag }}',
-              head: '${{ steps.prev_tag.outputs.current_tag }}'
+              per_page: 100,
             });
 
-            const results = [];
-            for (const commit of comparison.commits) {
-              const sha = commit.sha;
-              const fullMessage = commit.commit.message;
-              const shortMessage = fullMessage.split('\n')[0];
-              const author = commit.commit.author.name;
-              const date = commit.commit.author.date;
-              const url = commit.html_url;
+            const calverReleases = releases
+              .filter(r => calverRe.test(r.tag_name) && !r.draft)
+              .sort((a, b) => new Date(b.published_at) - new Date(a.published_at));
 
-              const { data: prs } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                commit_sha: sha
-              });
+            const currentIdx = calverReleases.findIndex(r => r.tag_name === currentTag);
+            const prevRelease = currentIdx >= 0 ? calverReleases[currentIdx + 1] : null;
+            const prevTag = prevRelease?.tag_name ?? null;
 
-              const pr = prs[0] ? {
-                number: prs[0].number,
-                title: prs[0].title,
-                body: prs[0].body,
-                url: prs[0].html_url,
-                author: prs[0].user?.login,
-                labels: prs[0].labels?.map(l => l.name) || [],
-                merged_at: prs[0].merged_at
-              } : null;
+            core.info(`Current tag: ${currentTag}`);
+            core.info(`Previous release tag: ${prevTag ?? '(none — first release)'}`);
 
-              results.push({ sha, fullMessage, shortMessage, author, date, url, pr });
+            // ── 2. Call generate-notes: GitHub tracks PR merges server-side, so
+            //    this is correct even when commits were rebased/force-pushed. ──
+            const notesParams = {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: currentTag,
+            };
+            if (prevTag) notesParams.previous_tag_name = prevTag;
+
+            const { data: generated } = await github.rest.repos.generateReleaseNotes(notesParams);
+            core.info(`generate-notes body length: ${generated.body.length}`);
+
+            // ── 3. Get commits via compareCommits for the direct-push context ──
+            // compareCommits uses merge-base, which may include rebased duplicates,
+            // but Claude is instructed to use the PR list as the authoritative source
+            // and treat commits only as supplementary detail for non-PR changes.
+            let commits = [];
+            if (prevTag) {
+              try {
+                const { data: comparison } = await github.rest.repos.compareCommits({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  base: prevTag,
+                  head: currentTag,
+                });
+                commits = comparison.commits.map(c => ({
+                  sha: c.sha.slice(0, 7),
+                  message: c.commit.message.split('\n')[0],
+                  author: c.commit.author.name,
+                  date: c.commit.author.date,
+                  url: c.html_url,
+                }));
+              } catch (e) {
+                core.warning(`compareCommits failed: ${e.message} — proceeding without commit list`);
+              }
             }
 
+            // ── 4. Write context file for Claude ──
             const fs = require('fs');
-            fs.writeFileSync('${{ github.workspace }}/github_changes.tmp.json', JSON.stringify(results, null, 2));
+            const ctx = {
+              current_tag: currentTag,
+              previous_tag: prevTag,
+              // PR-based changes: generated server-side by GitHub, immune to git rebases.
+              // Authoritative for anything that came in via pull request.
+              github_generated_notes: generated.body,
+              // Commit-based changes: all commits in the tag range.
+              // Authoritative for direct-push changes (no PR). Many real changes land
+              // this way. May overlap with PRs above — deduplicate by message when both
+              // describe the same change, preferring the PR entry.
+              commits,
+            };
+            fs.writeFileSync('${{ github.workspace }}/github_changes.tmp.json', JSON.stringify(ctx, null, 2));
+            core.info(`Wrote context file. ${commits.length} commits, prev tag: ${prevTag}`);
 
       - name: Generate release notes via Claude
         id: claude
