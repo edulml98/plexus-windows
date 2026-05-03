@@ -75,6 +75,24 @@ The resulting executable will be named `plexus-macos` (or `plexus-linux` / `plex
 
 The binary is fully self-contained: migration SQL files are embedded inside it at compile time, so no separate `drizzle/` directory or `DRIZZLE_MIGRATIONS_PATH` environment variable is needed when running the standalone binary.
 
+### Running the Windows Standalone Binary
+
+If `plexus.exe` opens and closes immediately, run it from a terminal so startup errors remain visible. `ADMIN_KEY` must be set before starting the server.
+
+**Windows PowerShell:**
+```powershell
+$env:ADMIN_KEY = "your-admin-password"
+$env:DATABASE_URL = "sqlite://./data/plexus.db"
+.\plexus.exe
+```
+
+**Windows Command Prompt:**
+```cmd
+set ADMIN_KEY=your-admin-password
+set DATABASE_URL=sqlite://./data/plexus.db
+plexus.exe
+```
+
 ## Running from Source
 
 1. **Clone the repository**:
