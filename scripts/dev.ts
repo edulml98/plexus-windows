@@ -51,7 +51,7 @@ for (let i = 2; i < process.argv.length; i++) {
 
 // Stable port derived from the worktree directory name, range 10000-19999.
 // Two worktrees running simultaneously will land on different ports automatically.
-// Override with: bun run dev PORT=4000
+// Override with: PORT=4000 bun run dev
 if (!process.env.PORT) {
   let hash = 5381;
   for (let i = 0; i < dirName.length; i++) {
@@ -61,13 +61,13 @@ if (!process.env.PORT) {
 }
 
 // Per-worktree SQLite file — persists across restarts, isolated per branch.
-// Override with: bun run dev DATABASE_URL=postgresql://...
+// Override with: DATABASE_URL=postgresql://... bun run dev
 if (!process.env.DATABASE_URL) {
   process.env.DATABASE_URL = `sqlite://${join(tmpdir(), `plexus-${dirName}.db`)}`;
 }
 
 // Dev-only admin key.
-// Override with: bun run dev ADMIN_KEY=secret
+// Override with: ADMIN_KEY=secret bun run dev
 if (!process.env.ADMIN_KEY) {
   process.env.ADMIN_KEY = 'password';
 }
