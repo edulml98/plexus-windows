@@ -1,8 +1,8 @@
 /**
  * clear-dev.ts
  *
- * Resets the local dev database by deleting the SQLite file from /tmp and
- * issuing a graceful restart to the running Plexus server. The process
+ * Resets the local dev database by deleting the SQLite file from the OS temp
+ * directory and issuing a graceful restart to the running Plexus server. The process
  * manager (bun --watch in dev mode) will restart the server automatically
  * against the fresh database.
  *
@@ -16,6 +16,7 @@
  */
 
 import { join, basename } from 'path';
+import { tmpdir } from 'os';
 import { unlinkSync, existsSync, readFileSync } from 'fs';
 
 // ---------------------------------------------------------------------------
@@ -36,13 +37,13 @@ function deriveDevPort(): string {
 
 function deriveDbPath(): string {
   const dirName = basename(process.cwd());
-  return `/tmp/plexus-${dirName}.db`;
+  return join(tmpdir(), `plexus-${dirName}.db`);
 }
 
 const PORT = process.env.PLEXUS_PORT ?? deriveDevPort();
 const DB_PATH = process.env.DATABASE_URL?.replace('sqlite://', '') ?? deriveDbPath();
 const API_ROOT = `${BASE_URL}:${PORT}`;
-const PID_FILE = `/tmp/plexus-${basename(process.cwd())}.pid`;
+const PID_FILE = join(tmpdir(), `plexus-${basename(process.cwd())}.pid`);
 
 // ---------------------------------------------------------------------------
 // Main

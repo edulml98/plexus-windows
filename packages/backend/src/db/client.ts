@@ -42,7 +42,7 @@ function parseConnectionString(uri: string): {
 }
 
 function resolvePath(relPath: string): string {
-  if (relPath.startsWith('/')) return relPath;
+  if (path.isAbsolute(relPath)) return relPath;
   if (relPath.startsWith('./')) {
     return path.resolve(process.cwd(), relPath);
   }

@@ -1,5 +1,6 @@
 import { spawn } from 'bun';
 import { join, basename } from 'path';
+import { tmpdir } from 'os';
 import { createServer } from 'net';
 import { writeFileSync, unlinkSync } from 'fs';
 
@@ -7,9 +8,50 @@ import { writeFileSync, unlinkSync } from 'fs';
 
 const dirName = basename(process.cwd());
 
+function readOptionValue(args: string[], index: number, option: string) {
+  const value = args[index + 1];
+  if (!value || value.startsWith('--')) {
+    console.error(`Missing value for ${option}`);
+    process.exit(1);
+  }
+  return value;
+}
+
+for (let i = 2; i < process.argv.length; i++) {
+  const arg = process.argv[i];
+
+  if (arg.startsWith('DATABASE_URL=')) {
+    process.env.DATABASE_URL = arg.slice('DATABASE_URL='.length);
+  } else if (arg.startsWith('PORT=')) {
+    process.env.PORT = arg.slice('PORT='.length);
+  } else if (arg.startsWith('ADMIN_KEY=')) {
+    process.env.ADMIN_KEY = arg.slice('ADMIN_KEY='.length);
+  } else if (arg === '--database-url') {
+    process.env.DATABASE_URL = readOptionValue(process.argv, i, arg);
+    i++;
+  } else if (arg.startsWith('--database-url=')) {
+    process.env.DATABASE_URL = arg.slice('--database-url='.length);
+  } else if (arg === '--port') {
+    process.env.PORT = readOptionValue(process.argv, i, arg);
+    i++;
+  } else if (arg.startsWith('--port=')) {
+    process.env.PORT = arg.slice('--port='.length);
+  } else if (arg === '--admin-key') {
+    process.env.ADMIN_KEY = readOptionValue(process.argv, i, arg);
+    i++;
+  } else if (arg.startsWith('--admin-key=')) {
+    process.env.ADMIN_KEY = arg.slice('--admin-key='.length);
+  } else {
+    console.error(`Unknown option: ${arg}`);
+    console.error('Usage: bun run dev [DATABASE_URL=...] [PORT=...] [ADMIN_KEY=...]');
+    console.error('   or: bun run dev [--database-url ...] [--port ...] [--admin-key ...]');
+    process.exit(1);
+  }
+}
+
 // Stable port derived from the worktree directory name, range 10000-19999.
 // Two worktrees running simultaneously will land on different ports automatically.
-// Override with: PORT=4000 bun run dev
+// Override with: bun run dev PORT=4000
 if (!process.env.PORT) {
   let hash = 5381;
   for (let i = 0; i < dirName.length; i++) {
@@ -19,13 +61,13 @@ if (!process.env.PORT) {
 }
 
 // Per-worktree SQLite file — persists across restarts, isolated per branch.
-// Override with: DATABASE_URL=postgresql://... bun run dev
+// Override with: bun run dev DATABASE_URL=postgresql://...
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = `sqlite:///tmp/plexus-${dirName}.db`;
+  process.env.DATABASE_URL = `sqlite://${join(tmpdir(), `plexus-${dirName}.db`)}`;
 }
 
 // Dev-only admin key.
-// Override with: ADMIN_KEY=secret bun run dev
+// Override with: bun run dev ADMIN_KEY=secret
 if (!process.env.ADMIN_KEY) {
   process.env.ADMIN_KEY = 'password';
 }
@@ -51,7 +93,7 @@ await new Promise<void>((resolve, reject) => {
 // --- PID file ---
 // Written so that clear-dev.ts can send SIGHUP to trigger a backend restart.
 
-const PID_FILE = `/tmp/plexus-${dirName}.pid`;
+const PID_FILE = join(tmpdir(), `plexus-${dirName}.pid`);
 writeFileSync(PID_FILE, String(process.pid));
 
 // --- Startup ---

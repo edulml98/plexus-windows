@@ -71,7 +71,7 @@ export default async function globalSetup() {
 
   const testConfig = `
 database:
-  connection_string: "${testDbUrl}"
+  connection_string: ${JSON.stringify(testDbUrl)}
 adminKey: test-key
 providers: {}
 models: {}
