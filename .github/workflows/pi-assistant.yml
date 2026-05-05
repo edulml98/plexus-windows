@@ -48,8 +48,8 @@ jobs:
 
       - name: Configure MCP servers
         run: |
-          mkdir -p /root/.pi/agent
-          cat > /root/.pi/agent/mcp.json << 'EOF'
+          mkdir -p ~/.pi/agent
+          cat > ~/.pi/agent/mcp.json << 'EOF'
           {
             "mcpServers": {
               "github-insiders": {
@@ -117,4 +117,4 @@ jobs:
 
       - name: Cleanup MCP config
         if: always()
-        run: rm -f /root/.pi/agent/mcp.json
+        run: rm -f ~/.pi/agent/mcp.json
