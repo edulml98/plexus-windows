@@ -42,21 +42,9 @@ jobs:
       packages: write
       id-token: write
 
-  generate-notes:
-    name: Generate Release Notes
-    needs: setup
-    uses: ./.github/workflows/release-generate-notes.yml
-    with:
-      tag: ${{ needs.setup.outputs.tag }}
-    secrets: inherit
-    permissions:
-      contents: write
-      pull-requests: read
-      id-token: write
-
   release:
     name: Create Release
-    needs: [setup, build-binaries, build-docker, generate-notes]
+    needs: [setup, build-binaries, build-docker]
     uses: ./.github/workflows/release-publish.yml
     with:
       tag: ${{ needs.setup.outputs.tag }}

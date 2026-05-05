@@ -19,30 +19,12 @@ jobs:
         with:
           path: artifacts
 
-      - name: Download release notes
-        uses: actions/download-artifact@v8
-        with:
-          name: release-notes
-          path: release-notes
-
       - name: Organize binaries
         run: |
           mkdir -p release
           cp artifacts/binary-linux/plexus-linux release/
           cp artifacts/binary-macos/plexus-macos release/
           cp artifacts/binary-windows/plexus.exe release/
-
-      - name: Read release notes
-        id: read_notes
-        run: |
-          if [ -f release-notes/notes.md ]; then
-            body=$(cat release-notes/notes.md)
-            echo "body<<EOF" >> "$GITHUB_OUTPUT"
-            echo "$body" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
-          else
-            echo "body=" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Create Release
         uses: softprops/action-gh-release@v3
@@ -54,4 +36,3 @@ jobs:
             release/plexus.exe
           draft: false
           prerelease: false
-          body: ${{ steps.read_notes.outputs.body }}
