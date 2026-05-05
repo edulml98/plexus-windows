@@ -32,6 +32,20 @@ jobs:
               core.setFailed(`User ${context.payload.comment.user.login} is not a collaborator or owner — ignoring /pi trigger`);
             }
 
+      - name: Post initial progress comment
+        id: initial_comment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: comment } = await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.payload.issue.number,
+              body: '🤔 **Pi is working on it...**\n\nAnalyzing your request and planning next steps.',
+            });
+            core.setOutput('comment_id', comment.id);
+            core.info(`Posted progress comment: ${comment.id}`);
+
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -46,27 +60,11 @@ jobs:
       - name: Build frontend
         run: bun run build:frontend
 
-      - name: Configure MCP servers
-        run: |
-          mkdir -p ~/.pi/agent
-          cat > ~/.pi/agent/mcp.json << 'EOF'
-          {
-            "mcpServers": {
-              "github-insiders": {
-                "url": "https://api.githubcopilot.com/mcp/insiders",
-                "auth": "bearer",
-                "bearerTokenEnv": "SUPER_TOKEN",
-                "directTools": true
-              }
-            }
-          }
-          EOF
-
       - name: Run Pi agent
         id: pi
-        uses: shaftoe/pi-coding-agent-action@v2
+        uses: mcowger/pi-coding-agent-action@suppres_final_comment
         env:
-          SUPER_TOKEN: ${{ secrets.SUPER_TOKEN }}
+          GH_TOKEN: ${{ secrets.SUPER_TOKEN }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: openrouter
@@ -74,21 +72,48 @@ jobs:
           token: ${{ secrets.LLM_API_KEY }}
           base_url: ${{ secrets.LLM_API_HOST }}
           trigger: /pi
-          extensions: npm:pi-mcp-adapter
           load_builtin_extensions: false
+          suppress_final_comment: true
           export_session_html: true
           prompt: |
             You are a coding assistant for the Plexus/Shaftoe repository.
 
+            ## GitHub CLI
+            Use `gh` for all GitHub operations. `gh` is pre-installed on the runner — do not
+            install it. `GH_TOKEN` is pre-set for authentication — do not run `gh auth login`.
+            The full `gh` reference is in `.agents/skills/gh-cli/SKILL.md`.
+
+            ## Progress comment
+            A comment has already been posted on issue #${{ github.event.issue.number }} with ID
+            `${{ steps.initial_comment.outputs.comment_id }}`. You MUST manage this comment
+            throughout your work. Never create new comments — only update this one.
+
+            **Protocol:**
+            1. Immediately replace it with a checklist of your plan:
+               ```
+               gh issue comment ${{ github.event.issue.number }} \
+                 --edit ${{ steps.initial_comment.outputs.comment_id }} \
+                 --body "## Working on it...
+               - [ ] Step 1
+               - [ ] Step 2" \
+                 --repo ${{ github.repository }}
+               ```
+            2. Check off each item as you complete it (re-run the same edit command with updated body).
+            3. When done, replace the entire comment with your final response.
+
+            ## CRITICAL: No text output
+            Do NOT produce any text output or narration. Communicate ONLY through
+            `gh issue comment --edit` tool calls. Any text you output will be
+            automatically posted as an additional unwanted comment — keep it empty.
+
             ## Response style
             - Be concise. Use headings and bullets. No filler text.
-            - If no code change is needed, answer the question directly as a comment on the issue.
 
             ## When coding is required
-            - Create a branch named `bot/issue-{number}` off `main`
+            - Create a branch named `bot/issue-${{ github.event.issue.number }}` off `main`
             - Keep changes minimal and focused on the request — do not refactor unrelated code
             - Commit your changes (pre-commit hooks will validate typecheck, format, and tests automatically)
-            - Open a PR targeting `main` with a clear title and a description that references the issue number
+            - Open a PR targeting `main` with a clear title and description referencing the issue
 
       - name: Log agent summary
         if: always()
@@ -114,7 +139,3 @@ jobs:
           name: pi-session
           path: ${{ steps.pi.outputs.session_html_path }}
           retention-days: 7
-
-      - name: Cleanup MCP config
-        if: always()
-        run: rm -f ~/.pi/agent/mcp.json
