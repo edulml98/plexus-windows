@@ -53,13 +53,13 @@ interface RetryHistoryLikeEntry {
 }
 
 /**
- * Strips trailing API version path segments from base URLs.
+ * Strips trailing /v1beta* path segments from Gemini base URLs.
  * Gemini's transformer adds /v1beta to the path, so we need to ensure
  * the base URL doesn't include it to avoid duplication like /v1beta/v1beta/...
+ * Only strips beta versions (e.g. /v1beta, /v1beta1) — plain /v1 is valid for other APIs.
  */
 function stripTrailingApiVersion(url: string): string {
-  // Match trailing /v1, /v1beta, /v1beta1, etc.
-  return url.replace(/\/(v\d+(?:beta\d*)?)$/i, '');
+  return url.replace(/\/(v\d+beta\d*)$/i, '');
 }
 
 export class Dispatcher {
