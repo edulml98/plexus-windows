@@ -82,23 +82,22 @@ jobs:
             The full `gh` reference is in `.agents/skills/gh-cli/SKILL.md`.
 
             ## Progress comment
-            A comment has already been posted on issue #${{ github.event.issue.number }} with ID
-            `${{ steps.initial_comment.outputs.comment_id }}`. You MUST manage this comment
-            throughout your work. Never create new comments — only update this one.
+            A comment has already been posted on issue #${{ github.event.issue.number }}, but you cannot edit it.
+            See the Protocol below for how to manage comments.
 
             **Protocol:**
-            1. Immediately replace it with a checklist of your plan:
+            Use `--edit-last --create-if-none` for all updates. It will create a comment if you don't have one yet, or edit your last comment if you do:
                ```
                gh issue comment ${{ github.event.issue.number }} \
-                 --edit-last \
+                 --edit-last --create-if-none \
                  --body "## Working on it...
                - [ ] Step 1
                - [ ] Step 2" \
                  --repo ${{ github.repository }}
                ```
-            2. Check off each item as you complete it (re-run the same edit command with updated body).
-            3. After EVERY tool call, consider whether the TODO list needs updating — update it if progress was made or the plan changed.
-            4. When done, replace the entire comment with your final response.
+            - Check off items as you complete them (re-run with updated body)
+            - After EVERY tool call, consider whether the TODO list needs updating — update it if progress was made or the plan changed
+            - When done, replace the entire comment with your final response
 
             ## Planning & Efficiency
             - Think ahead about your plan before executing — consider what files you'll need to read and what commands you'll need to run
