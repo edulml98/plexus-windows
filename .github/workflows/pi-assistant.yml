@@ -46,20 +46,17 @@ jobs:
       - name: Build frontend
         run: bun run build:frontend
 
-      - name: Configure custom LLM provider
+      - name: Configure MCP servers
         run: |
-          mkdir -p ~/.pi/agent
-          cat > ~/.pi/agent/models.json << 'EOF'
+          mkdir -p /root/.pi/agent
+          cat > /root/.pi/agent/mcp.json << 'EOF'
           {
-            "providers": {
-              "my-llm": {
-                "baseUrl": "${{ secrets.LLM_API_HOST }}",
-                "apiKey": "${{ secrets.LLM_API_KEY }}",
-                "models": [{
-                  "id": "${{ vars.LLM_MODEL_ID }}",
-                  "api": "openai-chat",
-                  "contextWindow": 262000
-                }]
+            "mcpServers": {
+              "github-insiders": {
+                "url": "https://api.githubcopilot.com/mcp/insiders",
+                "auth": "bearer",
+                "bearerTokenEnv": "SUPER_TOKEN",
+                "directTools": true
               }
             }
           }
@@ -68,12 +65,16 @@ jobs:
       - name: Run Pi agent
         id: pi
         uses: shaftoe/pi-coding-agent-action@v2
+        env:
+          SUPER_TOKEN: ${{ secrets.SUPER_TOKEN }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          provider: my-llm
+          provider: openrouter
           model: ${{ vars.LLM_MODEL_ID }}
+          token: ${{ secrets.LLM_API_KEY }}
+          base_url: ${{ secrets.LLM_API_HOST }}
           trigger: /pi
-          extensions: git:github.com/MonsieurBarti/GH-PI
+          extensions: npm:pi-mcp-adapter
           load_builtin_extensions: false
           export_session_html: true
           prompt: |
@@ -86,31 +87,34 @@ jobs:
             ## When coding is required
             - Create a branch named `bot/issue-{number}` off `main`
             - Keep changes minimal and focused on the request — do not refactor unrelated code
-            - Use GH-PI tools (`tff-github_*`) for all issue and PR operations
             - Commit your changes (pre-commit hooks will validate typecheck, format, and tests automatically)
             - Open a PR targeting `main` with a clear title and a description that references the issue number
 
       - name: Log agent summary
         if: always()
+        env:
+          PI_RESPONSE: ${{ steps.pi.outputs.response }}
         run: |
-          echo "### Pi Agent Summary" >> $GITHUB_STEP_SUMMARY
-          echo "- **Success:** ${{ steps.pi.outputs.success }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Duration:** ${{ steps.pi.outputs.duration_seconds }}s" >> $GITHUB_STEP_SUMMARY
-          echo "- **Input tokens:** ${{ steps.pi.outputs.input_tokens }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Output tokens:** ${{ steps.pi.outputs.output_tokens }}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Cost:** \$${{ steps.pi.outputs.cost }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "#### Response" >> $GITHUB_STEP_SUMMARY
-          echo "${{ steps.pi.outputs.response }}" >> $GITHUB_STEP_SUMMARY
+          {
+            echo "### Pi Agent Summary"
+            echo "- **Success:** ${{ steps.pi.outputs.success }}"
+            echo "- **Duration:** ${{ steps.pi.outputs.duration_seconds }}s"
+            echo "- **Input tokens:** ${{ steps.pi.outputs.input_tokens }}"
+            echo "- **Output tokens:** ${{ steps.pi.outputs.output_tokens }}"
+            echo "- **Cost:** \$${{ steps.pi.outputs.cost }}"
+            echo ""
+            echo "#### Response"
+            printf '%s\n' "$PI_RESPONSE"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload session HTML
-        if: always()
+        if: always() && steps.pi.outputs.session_html_path != ''
         uses: actions/upload-artifact@v4
         with:
           name: pi-session
           path: ${{ steps.pi.outputs.session_html_path }}
           retention-days: 7
 
-      - name: Cleanup LLM config
+      - name: Cleanup MCP config
         if: always()
-        run: rm -f ~/.pi/agent/models.json
+        run: rm -f /root/.pi/agent/mcp.json
