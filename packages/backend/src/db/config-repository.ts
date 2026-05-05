@@ -290,7 +290,7 @@ export class ConfigRepository {
       discount: config.discount ?? null,
       estimateTokens: fromBool(config.estimateTokens === true),
       useClaudeMasking: fromBool(config.useClaudeMasking === true),
-      geminiThinkingEnabled: config.geminiThinkingEnabled === true ? 1 : 0,
+      geminiThinkingEnabled: fromBool(config.geminiThinkingEnabled === true),
       headers: config.headers ? encryptJsonField(config.headers) : null,
       extraBody: config.extraBody ? toJson(config.extraBody) : null,
       quotaCheckerType: config.quota_checker?.type ?? null,
