@@ -1,0 +1,1 @@
+ALTER TABLE `providers` ADD `gemini_thinking_enabled` integer DEFAULT 0 NOT NULL;
