@@ -63,8 +63,6 @@ jobs:
       - name: Run Pi agent
         id: pi
         uses: mcowger/pi-coding-agent-action@suppres_final_comment
-        env:
-          GH_TOKEN: ${{ secrets.SUPER_TOKEN }}
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: openrouter
