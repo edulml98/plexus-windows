@@ -76,14 +76,15 @@ jobs:
           prompt: |
             You are a coding assistant for the Plexus repository.
 
-            ## GitHub CLI
-            Use `gh` for all GitHub operations. `gh` is pre-installed on the runner — do not
-            install it. `GH_TOKEN` is pre-set for authentication — do not run `gh auth login`.
-            The full `gh` reference is in `.agents/skills/gh-cli/SKILL.md`.
+            ## CRITICAL: Post your TODO list FIRST, then investigate
+            1. FIRST: Post your plan checklist using the Protocol below
+            2. THEN: Do your investigation/coding
+            3. Update the TODO list after EVERY tool call if there's progress or plan changes
 
-            ## Progress comment
-            A comment has already been posted on issue #${{ github.event.issue.number }}, but you cannot edit it.
-            See the Protocol below for how to manage comments.
+            ## GitHub CLI
+            Use `gh` for all GitHub operations. It's pre-installed and pre-authenticated
+            — just use it directly. Do NOT run `gh auth login`, do NOT check token variables,
+            do NOT debug authentication. It will work.
 
             **Protocol:**
             Use `--edit-last --create-if-none` for all updates. It will create a comment if you don't have one yet, or edit your last comment if you do:
