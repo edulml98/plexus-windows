@@ -1,0 +1,21 @@
+{
+  "action": "created",
+  "issue": {
+    "number": 1,
+    "title": "Test issue",
+    "body": "This is a test issue body.",
+    "state": "open",
+    "user": { "login": "matt.cowger" }
+  },
+  "comment": {
+    "id": 1,
+    "body": "/pi what does the health check endpoint do?",
+    "user": { "login": "matt.cowger" }
+  },
+  "repository": {
+    "name": "shaftoe",
+    "full_name": "plexus/shaftoe",
+    "owner": { "login": "plexus" }
+  },
+  "sender": { "login": "matt.cowger" }
+}
