@@ -76,7 +76,7 @@ jobs:
           suppress_final_comment: true
           export_session_html: true
           prompt: |
-            You are a coding assistant for the Plexus/Shaftoe repository.
+            You are a coding assistant for the Plexus repository.
 
             ## GitHub CLI
             Use `gh` for all GitHub operations. `gh` is pre-installed on the runner — do not
@@ -92,19 +92,20 @@ jobs:
             1. Immediately replace it with a checklist of your plan:
                ```
                gh issue comment ${{ github.event.issue.number }} \
-                 --edit ${{ steps.initial_comment.outputs.comment_id }} \
+                 --edit-last \
                  --body "## Working on it...
                - [ ] Step 1
                - [ ] Step 2" \
                  --repo ${{ github.repository }}
                ```
             2. Check off each item as you complete it (re-run the same edit command with updated body).
-            3. When done, replace the entire comment with your final response.
+            3. After EVERY tool call, consider whether the TODO list needs updating — update it if progress was made or the plan changed.
+            4. When done, replace the entire comment with your final response.
 
-            ## CRITICAL: No text output
-            Do NOT produce any text output or narration. Communicate ONLY through
-            `gh issue comment --edit` tool calls. Any text you output will be
-            automatically posted as an additional unwanted comment — keep it empty.
+            ## Planning & Efficiency
+            - Think ahead about your plan before executing — consider what files you'll need to read and what commands you'll need to run
+            - Batch multiple reads and bash calls together where they don't depend on each other's results
+            - Minimize round-trips by combining independent operations in a single response
 
             ## Response style
             - Be concise. Use headings and bullets. No filler text.
@@ -114,6 +115,7 @@ jobs:
             - Keep changes minimal and focused on the request — do not refactor unrelated code
             - Commit your changes (pre-commit hooks will validate typecheck, format, and tests automatically)
             - Open a PR targeting `main` with a clear title and description referencing the issue
+            - NEVER close the issue — leave it open for the user to close after reviewing the PR
 
       - name: Log agent summary
         if: always()
