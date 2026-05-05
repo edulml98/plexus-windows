@@ -384,6 +384,7 @@ export const ProviderConfigSchema = z
     gpu_bandwidth_tb_s: z.number().positive().optional(),
     gpu_flops_tflop: z.number().positive().optional(),
     gpu_power_draw_watts: z.number().positive().optional(),
+    geminiThinkingEnabled: z.boolean().optional(),
   })
   .refine((data) => !!data.api_key || isOAuthProviderConfig(data), {
     message: "'api_key' must be specified for provider",

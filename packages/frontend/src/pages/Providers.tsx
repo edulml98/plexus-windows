@@ -183,6 +183,7 @@ const EMPTY_PROVIDER: Provider = {
   disableCooldown: false,
   estimateTokens: false,
   useClaudeMasking: false,
+  geminiThinkingEnabled: false,
   apiBaseUrl: {},
   headers: {},
   extraBody: {},
@@ -2568,6 +2569,35 @@ export const Providers = () => {
                     OAuth.
                     <span className="text-warning" style={{ marginLeft: '6px' }}>
                       Only effective for Anthropic providers.
+                    </span>
+                  </div>
+                </div>
+
+                {/* Gemini Thinking Replacement */}
+                <div className="border border-border-glass rounded-md p-3 bg-bg-subtle">
+                  <div className="flex items-center gap-2" style={{ minHeight: '38px' }}>
+                    <Switch
+                      checked={editingProvider.geminiThinkingEnabled || false}
+                      onChange={(checked) =>
+                        setEditingProvider({ ...editingProvider, geminiThinkingEnabled: checked })
+                      }
+                    />
+                    <label
+                      className="font-body text-[13px] font-medium text-text"
+                      style={{ marginBottom: 0 }}
+                    >
+                      Enable Gemini Thinking
+                    </label>
+                  </div>
+                  <div
+                    className="font-body text-[11px] text-text-secondary"
+                    style={{ lineHeight: 1.35, marginTop: '4px' }}
+                  >
+                    When enabled, converts incoming reasoning_effort to Gemini's thinkingConfig.
+                    Strips unsupported reasoning field from requests to Gemini's OpenAI-compatible
+                    endpoint.
+                    <span className="text-warning" style={{ marginLeft: '6px' }}>
+                      Only effective for Gemini providers.
                     </span>
                   </div>
                 </div>

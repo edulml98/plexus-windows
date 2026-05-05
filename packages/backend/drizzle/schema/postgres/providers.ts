@@ -31,6 +31,7 @@ export const providers = pgTable(
     discount: real('discount'),
     estimateTokens: boolean('estimate_tokens').notNull().default(false),
     useClaudeMasking: boolean('use_claude_masking').notNull().default(false),
+    geminiThinkingEnabled: boolean('gemini_thinking_enabled').notNull().default(false),
     headers: text('headers'), // JSON or encrypted string — text for encryption compatibility
     extraBody: text('extra_body'), // JSON — not encrypted, text for consistency
     quotaCheckerType: quotaCheckerTypeEnum('quota_checker_type'),

@@ -216,6 +216,7 @@ export interface Provider {
   disableCooldown?: boolean;
   estimateTokens?: boolean;
   useClaudeMasking?: boolean;
+  geminiThinkingEnabled?: boolean;
   discount?: number;
   headers?: Record<string, string>;
   extraBody?: Record<string, any>;
@@ -1685,6 +1686,7 @@ export const api = {
           enabled: val.enabled !== false,
           estimateTokens: val.estimateTokens || false,
           useClaudeMasking: val.useClaudeMasking === true,
+          geminiThinkingEnabled: val.gemini_thinking_enabled === true,
           disableCooldown: val.disable_cooldown === true,
           discount: val.discount,
           headers: val.headers,
@@ -1712,6 +1714,7 @@ export const api = {
       enabled: provider.enabled,
       estimateTokens: provider.estimateTokens,
       useClaudeMasking: provider.useClaudeMasking,
+      geminiThinkingEnabled: provider.geminiThinkingEnabled,
       disable_cooldown: provider.disableCooldown === true ? true : undefined,
       discount: provider.discount,
       headers: provider.headers,
