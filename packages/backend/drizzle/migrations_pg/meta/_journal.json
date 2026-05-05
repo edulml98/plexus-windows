@@ -288,6 +288,13 @@
       "when": 1777315426333,
       "tag": "0040_fuzzy_metal_master",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1778002108513,
+      "tag": "0041_steady_the_twelve",
+      "breakpoints": true
     }
   ]
 }
