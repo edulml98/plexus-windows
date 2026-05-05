@@ -62,7 +62,7 @@ jobs:
 
       - name: Run Pi agent
         id: pi
-        uses: mcowger/pi-coding-agent-action@suppres_final_comment
+        uses: mcowger/pi-coding-agent-action@v2
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: openrouter
@@ -70,35 +70,37 @@ jobs:
           token: ${{ secrets.LLM_API_KEY }}
           base_url: ${{ secrets.LLM_API_HOST }}
           trigger: /pi
-          load_builtin_extensions: false
+          load_builtin_extensions: true
           suppress_final_comment: true
           export_session_html: true
           prompt: |
             You are a coding assistant for the Plexus repository.
 
             ## CRITICAL: Post your TODO list FIRST, then investigate
-            1. FIRST: Post your plan checklist using the Protocol below
+            1. FIRST: Post your plan checklist using `add_issue_comment`
             2. THEN: Do your investigation/coding
             3. Update the TODO list after EVERY tool call if there's progress or plan changes
 
-            ## GitHub CLI
-            Use `gh` for all GitHub operations. It's pre-installed and pre-authenticated
-            — just use it directly. Do NOT run `gh auth login`, do NOT check token variables,
-            do NOT debug authentication. It will work.
+            ## Comment tools
+            Use `add_issue_comment` and `update_comment` for all communication — do NOT use
+            `gh issue comment` or any other shell commands for comments.
 
             **Protocol:**
-            Use `--edit-last --create-if-none` for all updates. It will create a comment if you don't have one yet, or edit your last comment if you do:
+            1. First comment — `add_issue_comment` with your TODO checklist:
                ```
-               gh issue comment ${{ github.event.issue.number }} \
-                 --edit-last --create-if-none \
-                 --body "## Working on it...
-               - [ ] Step 1
-               - [ ] Step 2" \
-                 --repo ${{ github.repository }}
+               add_issue_comment({
+                 body: "## Working on it...\n- [ ] Step 1\n- [ ] Step 2"
+               })
                ```
-            - Check off items as you complete them (re-run with updated body)
-            - After EVERY tool call, consider whether the TODO list needs updating — update it if progress was made or the plan changed
-            - When done, replace the entire comment with your final response
+            2. Save the returned `comment_id` — you'll need it for updates.
+            3. Subsequent updates — `update_comment` with the same `comment_id`:
+               ```
+               update_comment({
+                 comment_id: <id>,
+                 body: "## Working on it...\n- [x] Step 1\n- [ ] Step 2"
+               })
+               ```
+            4. When done, use `update_comment` to replace the TODO with your final response.
 
             ## Planning & Efficiency
             - Think ahead about your plan before executing — consider what files you'll need to read and what commands you'll need to run
@@ -109,10 +111,8 @@ jobs:
             - Be concise. Use headings and bullets. No filler text.
 
             ## When coding is required
-            - Create a branch named `bot/issue-${{ github.event.issue.number }}` off `main`
+            - Use the `create_pull_request` tool to open a PR — it handles branching, committing, and PR creation automatically
             - Keep changes minimal and focused on the request — do not refactor unrelated code
-            - Commit your changes (pre-commit hooks will validate typecheck, format, and tests automatically)
-            - Open a PR targeting `main` with a clear title and description referencing the issue
             - NEVER close the issue — leave it open for the user to close after reviewing the PR
 
       - name: Log agent summary
