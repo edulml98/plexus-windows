@@ -290,6 +290,7 @@ export class ConfigRepository {
       discount: config.discount ?? null,
       estimateTokens: fromBool(config.estimateTokens === true),
       useClaudeMasking: fromBool(config.useClaudeMasking === true),
+      geminiThinkingEnabled: config.geminiThinkingEnabled === true ? 1 : 0,
       headers: config.headers ? encryptJsonField(config.headers) : null,
       extraBody: config.extraBody ? toJson(config.extraBody) : null,
       quotaCheckerType: config.quota_checker?.type ?? null,
@@ -461,6 +462,7 @@ export class ConfigRepository {
       ...(row.discount !== null ? { discount: row.discount } : {}),
       estimateTokens: toBool(row.estimateTokens),
       useClaudeMasking: toBool(row.useClaudeMasking),
+      gemini_thinking_enabled: toBool(row.geminiThinkingEnabled),
       ...(models ? { models } : {}),
       ...(row.headers ? { headers: decryptJsonField(row.headers) } : {}),
       ...(() => {

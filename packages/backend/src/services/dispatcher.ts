@@ -52,6 +52,16 @@ interface RetryHistoryLikeEntry {
   reason?: unknown;
 }
 
+/**
+ * Strips trailing API version path segments from base URLs.
+ * Gemini's transformer adds /v1beta to the path, so we need to ensure
+ * the base URL doesn't include it to avoid duplication like /v1beta/v1beta/...
+ */
+function stripTrailingApiVersion(url: string): string {
+  // Match trailing /v1, /v1beta, /v1beta1, etc.
+  return url.replace(/\/(v\d+(?:beta\d*)?)$/i, '');
+}
+
 export class Dispatcher {
   private usageStorage?: UsageStorageService;
 
@@ -1140,8 +1150,58 @@ export class Dispatcher {
       }
     }
 
-    // Ensure api_base_url doesn't end with slash
-    return rawBaseUrl.replace(/\/$/, '');
+    // Ensure api_base_url doesn't end with slash and strip trailing /v1beta if present
+    // (the transformer adds its own /v1beta path segment)
+    return stripTrailingApiVersion(rawBaseUrl.replace(/\/$/, ''));
+  }
+
+  /**
+   * Converts reasoning field to thinkingConfig for Gemini API.
+   * Gemini's OpenAI-compatible endpoint doesn't support 'reasoning' at top level,
+   * so we map request.reasoning.effort to generationConfig.thinkingConfig instead.
+   */
+  private applyGeminiThinkingConfig(route: RouteResult, targetApiType: string, payload: any): any {
+    const baseUrl = this.resolveBaseUrl(route, targetApiType).toLowerCase();
+    const isGemini = baseUrl.includes('generativelanguage.googleapis.com');
+    const enabled = route.config.geminiThinkingEnabled === true;
+
+    // Gemini's OpenAI-compatible endpoint doesn't support 'reasoning' at top level
+    // Always strip it, and if enabled, map reasoning.effort to thinkingConfig
+    if (isGemini && payload.reasoning && enabled) {
+      const { reasoning, ...restPayload } = payload;
+      const result: any = { ...restPayload };
+
+      // Map reasoning.effort to Gemini's thinkingLevel
+      // OpenAI ThinkLevel: 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
+      // Gemini ThinkingLevel: 'low' | 'medium' | 'high'
+      const effort = reasoning?.effort;
+      if (effort && effort !== 'none' && effort !== 'minimal') {
+        let thinkingLevel: 'low' | 'medium' | 'high';
+        if (effort === 'low') {
+          thinkingLevel = 'low';
+        } else if (effort === 'medium') {
+          thinkingLevel = 'medium';
+        } else {
+          // 'high' or 'xhigh' map to 'high'
+          thinkingLevel = 'high';
+        }
+
+        result.generationConfig = {
+          ...payload.generationConfig,
+          thinkingConfig: {
+            thinkingLevel,
+          },
+        };
+      }
+
+      return result;
+    } else if (isGemini && payload.reasoning) {
+      // Config not enabled but have reasoning - just strip it
+      const { reasoning: _, ...restPayload } = payload;
+      return restPayload;
+    }
+
+    return payload;
   }
 
   private isOAuthRoute(route: RouteResult, targetApiType: string): boolean {
@@ -1814,6 +1874,9 @@ export class Dispatcher {
       }
       providerPayload = await transformer.transformRequest(request);
     }
+
+    // Convert reasoning field to thinkingConfig for Gemini API
+    providerPayload = this.applyGeminiThinkingConfig(route, targetApiType, providerPayload);
 
     // Merge provider-level extraBody first
     if (route.config.extraBody) {

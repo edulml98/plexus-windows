@@ -18,6 +18,7 @@ export const providers = sqliteTable(
     discount: real('discount'),
     estimateTokens: integer('estimate_tokens').notNull().default(0),
     useClaudeMasking: integer('use_claude_masking').notNull().default(0),
+    geminiThinkingEnabled: integer('gemini_thinking_enabled').notNull().default(0),
     headers: text('headers'), // JSON: Record<string, string>
     extraBody: text('extra_body'), // JSON: Record<string, any>
     quotaCheckerType: text('quota_checker_type'),
