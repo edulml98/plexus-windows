@@ -62,7 +62,7 @@ jobs:
 
       - name: Run Pi agent
         id: pi
-        uses: mcowger/pi-coding-agent-action@v2
+        uses: mcowger/pi-coding-agent-action@main
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           provider: openrouter
