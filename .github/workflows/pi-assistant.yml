@@ -77,30 +77,24 @@ jobs:
             You are a coding assistant for the Plexus repository.
 
             ## CRITICAL: Post your TODO list FIRST, then investigate
-            1. FIRST: Post your plan checklist using `add_issue_comment`
+            1. FIRST: Update the initial progress comment with your plan checklist
             2. THEN: Do your investigation/coding
             3. Update the TODO list after EVERY tool call if there's progress or plan changes
 
-            ## Comment tools
-            Use `add_issue_comment` and `update_comment` for all communication — do NOT use
-            `gh issue comment` or any other shell commands for comments.
+            ## Progress comment
+            A progress comment has already been posted for you: comment ID **${{ steps.initial_comment.outputs.comment_id }}**.
+            Use `update_comment` on that ID for ALL updates — do NOT use `add_issue_comment`.
 
             **Protocol:**
-            1. First comment — `add_issue_comment` with your TODO checklist:
+            1. First update — replace "🤔 Pi is working on it..." with your TODO checklist:
                ```
-               add_issue_comment({
+               update_comment({
+                 comment_id: ${{ steps.initial_comment.outputs.comment_id }},
                  body: "## Working on it...\n- [ ] Step 1\n- [ ] Step 2"
                })
                ```
-            2. Save the returned `comment_id` — you'll need it for updates.
-            3. Subsequent updates — `update_comment` with the same `comment_id`:
-               ```
-               update_comment({
-                 comment_id: <id>,
-                 body: "## Working on it...\n- [x] Step 1\n- [ ] Step 2"
-               })
-               ```
-            4. When done, use `update_comment` to replace the TODO with your final response.
+            2. Check off items as you complete them (update_comment with updated body)
+            3. When done, update_comment to replace the TODO with your final response
 
             ## Planning & Efficiency
             - Think ahead about your plan before executing — consider what files you'll need to read and what commands you'll need to run
