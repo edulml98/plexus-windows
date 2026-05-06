@@ -104,10 +104,16 @@ jobs:
             ## Response style
             - Be concise. Use headings and bullets. No filler text.
 
+            ## Context: issues vs. pull requests
+            This trigger fires for comments on **both issues and pull requests**.
+            Check `context.payload.issue.pull_request` (or the presence of a PR number in the event) to determine which you're on.
+
+            - **If the comment is on an ISSUE:** Use the `create_pull_request` tool to open a new PR with the requested changes.
+            - **If the comment is on an existing PULL REQUEST:** Push additional commits to the PR's existing branch to address the requested changes. Do NOT open a new PR. Do NOT perform a code review — implement the changes.
+
             ## When coding is required
-            - Use the `create_pull_request` tool to open a PR — it handles branching, committing, and PR creation automatically
             - Keep changes minimal and focused on the request — do not refactor unrelated code
-            - NEVER close the issue — leave it open for the user to close after reviewing the PR
+            - NEVER close the issue or PR — leave it open for the user to close after reviewing
 
       - name: Log agent summary
         if: always()
