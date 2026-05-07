@@ -1,4 +1,4 @@
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { Octokit } from 'octokit';
 import { createInterface } from 'node:readline';
 
@@ -173,11 +173,84 @@ async function main() {
     });
 
     console.log(`✅ Created tag ${version} at origin/main\n`);
-    console.log('Release tag created! GitHub Actions will handle the rest.\n');
+
+    // Follow the release workflow
+    await followReleaseWorkflow(owner, repo, version);
   } catch (e) {
     console.error('\n❌ GitHub API operation failed:', e);
     process.exit(1);
   }
+}
+
+async function followReleaseWorkflow(owner: string, repo: string, version: string): Promise<void> {
+  console.log('Waiting for release workflow to start...\n');
+
+  // Wait for the workflow to be triggered (poll for up to 30 seconds)
+  let runId: string | null = null;
+  const maxAttempts = 30;
+  const pollInterval = 1000;
+
+  for (let i = 0; i < maxAttempts; i++) {
+    await sleep(pollInterval);
+
+    try {
+      const result = execSync(
+        `gh run list --repo ${owner}/${repo} --branch refs/tags/${version} --limit 1 --json id,status,conclusion`,
+        { encoding: 'utf-8' }
+      );
+      const runs = JSON.parse(result);
+      if (runs.length > 0) {
+        runId = runs[0]!.id;
+        break;
+      }
+    } catch {
+      // Workflow not found yet, continue polling
+    }
+  }
+
+  if (!runId) {
+    console.log(`Could not find workflow run. Check https://github.com/${owner}/${repo}/actions\n`);
+    return;
+  }
+
+  console.log(`Found workflow run: ${runId}\n`);
+
+  // Watch the workflow until it completes
+  await watchWorkflowRun(owner, repo, runId);
+
+  // Show the logs
+  console.log('\n--- Workflow Logs ---\n');
+  execSync(`gh run view ${runId} --repo ${owner}/${repo} --log`, { stdio: 'inherit' });
+
+  // Get the final status
+  const result = execSync(
+    `gh run view ${runId} --repo ${owner}/${repo} --json status,conclusion`,
+    { encoding: 'utf-8' }
+  );
+  const runInfo = JSON.parse(result);
+
+  if (runInfo.conclusion === 'success') {
+    console.log('\n✅ Release workflow completed successfully!\n');
+  } else {
+    console.error(`\n❌ Release workflow ${runInfo.conclusion}\n`);
+    process.exit(1);
+  }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function watchWorkflowRun(owner: string, repo: string, runId: string): Promise<void> {
+  return new Promise((resolve) => {
+    const child = spawn('gh', ['run', 'watch', runId, '--repo', `${owner}/${repo}`, '--exit-status'], {
+      stdio: 'inherit',
+    });
+
+    child.on('close', (code) => {
+      resolve();
+    });
+  });
 }
 
 main().catch(console.error);
