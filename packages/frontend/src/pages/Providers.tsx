@@ -2341,6 +2341,9 @@ export const Providers = () => {
                     <div className="flex flex-col gap-1">
                       <label className="font-body text-[11px] font-medium text-text-secondary">
                         Discount (%)
+                        <span className="font-normal text-[10px] text-text-muted ml-1 block">
+                          e.g., 10 → pays 90%
+                        </span>
                       </label>
                       <div style={{ position: 'relative' }}>
                         <input
@@ -3215,26 +3218,34 @@ export const Providers = () => {
                                     />
                                   </div>
                                   <div className="w-full sm:w-24">
-                                    <Input
-                                      label="Discount (0-1)"
-                                      type="number"
-                                      step="0.01"
-                                      min="0"
-                                      max="1"
-                                      placeholder=""
-                                      value={mCfg.pricing.discount ?? ''}
-                                      onChange={(e) => {
-                                        const val = e.target.value;
-                                        if (val === '') {
-                                          const { discount, ...rest } = mCfg.pricing;
-                                          updateModelConfig(mId, { pricing: rest });
-                                        } else {
-                                          updateModelConfig(mId, {
-                                            pricing: { ...mCfg.pricing, discount: parseFloat(val) },
-                                          });
-                                        }
-                                      }}
-                                    />
+                                    <div className="flex flex-col gap-1">
+                                      <Input
+                                        label="Discount (0-1)"
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        max="1"
+                                        placeholder=""
+                                        value={mCfg.pricing.discount ?? ''}
+                                        onChange={(e) => {
+                                          const val = e.target.value;
+                                          if (val === '') {
+                                            const { discount, ...rest } = mCfg.pricing;
+                                            updateModelConfig(mId, { pricing: rest });
+                                          } else {
+                                            updateModelConfig(mId, {
+                                              pricing: {
+                                                ...mCfg.pricing,
+                                                discount: parseFloat(val),
+                                              },
+                                            });
+                                          }
+                                        }}
+                                      />
+                                      <span className="text-[10px] text-text-muted">
+                                        0.1 = 10% off (pay 90%)
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
                               )}
