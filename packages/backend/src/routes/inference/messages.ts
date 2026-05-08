@@ -144,17 +144,14 @@ export async function registerMessagesRoute(
             ? 'invalid_request_error'
             : 'api_error';
       const errorCode = e.routingContext?.code;
-      return reply
-        .header('x-request-id', requestId)
-        .code(statusCode)
-        .send({
-          type: 'error',
-          error: {
-            type: errorType,
-            message: e.message,
-            ...(errorCode && { code: errorCode }),
-          },
-        });
+      return reply.code(statusCode).send({
+        type: 'error',
+        error: {
+          type: errorType,
+          message: e.message,
+          ...(errorCode && { code: errorCode }),
+        },
+      });
     }
   });
 }

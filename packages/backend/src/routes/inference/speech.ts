@@ -134,10 +134,10 @@ export async function registerSpeechRoute(
 
       if (unifiedResponse.stream) {
         usageRecord.isStreamed = true;
-        return reply.header('x-request-id', requestId).send(unifiedResponse.stream);
+        return reply.send(unifiedResponse.stream);
       }
 
-      return reply.header('x-request-id', requestId).send(unifiedResponse.audio);
+      return reply.send(unifiedResponse.audio);
     } catch (e: any) {
       usageRecord.responseStatus = 'error';
       usageRecord.durationMs = Date.now() - startTime;
@@ -154,12 +154,9 @@ export async function registerSpeechRoute(
       DebugManager.getInstance().flush(requestId);
       logger.error('Error processing speech request', e);
 
-      return reply
-        .header('x-request-id', requestId)
-        .code(e.routingContext?.statusCode || 500)
-        .send({
-          error: { message: e.message, type: 'api_error' },
-        });
+      return reply.code(e.routingContext?.statusCode || 500).send({
+        error: { message: e.message, type: 'api_error' },
+      });
     }
   });
 }

@@ -137,7 +137,6 @@ export async function registerChatRoute(
       DebugManager.getInstance().flush(requestId);
 
       logger.error('Error processing OpenAI request', e);
-      reply.header('x-request-id', requestId);
       const statusCode = e.routingContext?.statusCode || 500;
       const errorType =
         statusCode === 401
