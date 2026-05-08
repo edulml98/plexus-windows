@@ -195,12 +195,12 @@ async function followReleaseWorkflow(owner: string, repo: string, version: strin
 
     try {
       const result = execSync(
-        `gh run list --repo ${owner}/${repo} --branch refs/tags/${version} --limit 1 --json id,status,conclusion`,
+        `gh run list --repo ${owner}/${repo} --branch refs/tags/${version} --limit 1 --json databaseId,status,conclusion`,
         { encoding: 'utf-8' }
       );
       const runs = JSON.parse(result);
       if (runs.length > 0) {
-        runId = runs[0]!.id;
+        runId = runs[0]!.databaseId;
         break;
       }
     } catch {
@@ -223,9 +223,12 @@ async function followReleaseWorkflow(owner: string, repo: string, version: strin
   execSync(`gh run view ${runId} --repo ${owner}/${repo} --log`, { stdio: 'inherit' });
 
   // Get the final status
-  const result = execSync(`gh run view ${runId} --repo ${owner}/${repo} --json status,conclusion`, {
-    encoding: 'utf-8',
-  });
+  const result = execSync(
+    `gh run view ${runId} --repo ${owner}/${repo} --json databaseId,status,conclusion`,
+    {
+      encoding: 'utf-8',
+    }
+  );
   const runInfo = JSON.parse(result);
 
   if (runInfo.conclusion === 'success') {
