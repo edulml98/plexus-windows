@@ -148,6 +148,7 @@ export async function registerGeminiRoute(
       logger.error('Error processing Gemini request', e);
       const statusCode = e.routingContext?.statusCode || 500;
       const errorReason = e.routingContext?.code;
+      reply.header('x-request-id', requestId);
       const status =
         statusCode === 401
           ? 'UNAUTHENTICATED'

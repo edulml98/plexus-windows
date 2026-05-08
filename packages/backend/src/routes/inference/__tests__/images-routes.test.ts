@@ -29,6 +29,7 @@ type FakeRequest = {
 };
 
 type FakeReply = {
+  header: (name: string, value: string) => FakeReply;
   code: (statusCode: number) => FakeReply;
   send: (payload: unknown) => unknown;
 };
@@ -100,6 +101,7 @@ describe('Images route telemetry', () => {
 
     const replyState: { statusCode?: number; payload?: unknown } = {};
     const reply: FakeReply = {
+      header: vi.fn(() => reply),
       code: vi.fn((statusCode: number) => {
         replyState.statusCode = statusCode;
         return reply;
@@ -214,6 +216,7 @@ describe('Images route telemetry', () => {
 
     const replyState: { statusCode?: number; payload?: unknown } = {};
     const reply: FakeReply = {
+      header: vi.fn(() => reply),
       code: vi.fn((statusCode: number) => {
         replyState.statusCode = statusCode;
         return reply;

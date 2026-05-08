@@ -237,20 +237,23 @@ export async function registerResponsesRoute(
 
       const statusCode = e.routingContext?.statusCode || 500;
       const errorCode = e.routingContext?.code;
-      return reply.code(statusCode).send({
-        error: {
-          message: e.message || 'Internal server error',
-          type: statusCode >= 500 ? 'server_error' : 'invalid_request_error',
-          ...(errorCode && { code: errorCode }),
-          ...(e.routingContext && {
-            routing_context: {
-              provider: e.routingContext.provider,
-              target_model: e.routingContext.targetModel,
-              target_api_type: e.routingContext.targetApiType,
-            },
-          }),
-        },
-      });
+      return reply
+        .header('x-request-id', requestId)
+        .code(statusCode)
+        .send({
+          error: {
+            message: e.message || 'Internal server error',
+            type: statusCode >= 500 ? 'server_error' : 'invalid_request_error',
+            ...(errorCode && { code: errorCode }),
+            ...(e.routingContext && {
+              routing_context: {
+                provider: e.routingContext.provider,
+                target_model: e.routingContext.targetModel,
+                target_api_type: e.routingContext.targetApiType,
+              },
+            }),
+          },
+        });
     }
   };
 

@@ -117,7 +117,7 @@ export async function registerImagesRoute(
         delete (unifiedResponse as any).plexus;
       }
 
-      return reply.send(unifiedResponse);
+      return reply.header('x-request-id', requestId).send(unifiedResponse);
     } catch (e: any) {
       usageRecord.responseStatus = 'error';
       usageRecord.durationMs = Date.now() - startTime;
@@ -134,9 +134,12 @@ export async function registerImagesRoute(
       DebugManager.getInstance().flush(requestId);
       logger.error('Error processing image generation request', e);
 
-      return reply.code(e.routingContext?.statusCode || 500).send({
-        error: { message: e.message, type: 'api_error' },
-      });
+      return reply
+        .header('x-request-id', requestId)
+        .code(e.routingContext?.statusCode || 500)
+        .send({
+          error: { message: e.message, type: 'api_error' },
+        });
     }
   });
 
@@ -285,7 +288,7 @@ export async function registerImagesRoute(
         delete (unifiedResponse as any).plexus;
       }
 
-      return reply.send(unifiedResponse);
+      return reply.header('x-request-id', requestId).send(unifiedResponse);
     } catch (e: any) {
       usageRecord.responseStatus = 'error';
       usageRecord.durationMs = Date.now() - startTime;
@@ -302,9 +305,12 @@ export async function registerImagesRoute(
       DebugManager.getInstance().flush(requestId);
       logger.error('Error processing image edit request', e);
 
-      return reply.code(e.routingContext?.statusCode || 500).send({
-        error: { message: e.message, type: 'api_error' },
-      });
+      return reply
+        .header('x-request-id', requestId)
+        .code(e.routingContext?.statusCode || 500)
+        .send({
+          error: { message: e.message, type: 'api_error' },
+        });
     }
   });
 }

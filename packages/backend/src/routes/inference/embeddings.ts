@@ -94,7 +94,7 @@ export async function registerEmbeddingsRoute(
       DebugManager.getInstance().addTransformedResponse(requestId, formattedResponse);
       DebugManager.getInstance().flush(requestId);
 
-      return reply.send(formattedResponse);
+      return reply.header('x-request-id', requestId).send(formattedResponse);
     } catch (e: any) {
       usageRecord.responseStatus = 'error';
       usageRecord.durationMs = Date.now() - startTime;
@@ -111,9 +111,12 @@ export async function registerEmbeddingsRoute(
       DebugManager.getInstance().flush(requestId);
       logger.error('Error processing embeddings request', e);
 
-      return reply.code(e.routingContext?.statusCode || 500).send({
-        error: { message: e.message, type: 'api_error' },
-      });
+      return reply
+        .header('x-request-id', requestId)
+        .code(e.routingContext?.statusCode || 500)
+        .send({
+          error: { message: e.message, type: 'api_error' },
+        });
     }
   });
 }
