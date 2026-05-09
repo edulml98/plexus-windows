@@ -70,6 +70,9 @@ packages/backend/.test-db.sqlite-wal
 .test-db.sqlite-wal
 .pi-lens
 docs/openapi.yaml
+.githooks
+
+
 
 # Compiled binaries
 plexus-
