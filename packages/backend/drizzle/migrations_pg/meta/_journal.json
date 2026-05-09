@@ -316,6 +316,13 @@
       "when": 1778287061284,
       "tag": "0044_spooky_mojo",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1778352747584,
+      "tag": "0045_clever_darkstar",
+      "breakpoints": true
     }
   ]
 }

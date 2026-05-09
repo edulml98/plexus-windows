@@ -1,7 +1,7 @@
 import React from 'react';
 import { clsx } from 'clsx';
 import { AlertTriangle, CheckCircle2, TrendingUp } from 'lucide-react';
-import type { QuotaCheckResult } from '../../types/quota';
+import type { QuotaCheckResult, QuotaWindow } from '../../types/quota';
 import { QuotaProgressBar } from './QuotaProgressBar';
 import { formatNumber } from '../../lib/format';
 
@@ -57,7 +57,7 @@ export const WaferQuotaDisplay: React.FC<WaferQuotaDisplayProps> = ({ result, is
       <div className="flex items-center gap-2 min-w-0">
         <span className="text-xs font-semibold text-text whitespace-nowrap">Wafer</span>
       </div>
-      {windows.map((window, index) => (
+      {windows.map((window: QuotaWindow, index: number) => (
         <QuotaProgressBar
           key={index}
           label={window.windowLabel || 'Requests'}
@@ -67,7 +67,9 @@ export const WaferQuotaDisplay: React.FC<WaferQuotaDisplayProps> = ({ result, is
           displayValue={
             window.unit === 'requests'
               ? `${formatNumber(window.used ?? 0)} / ${formatNumber(window.limit ?? 0)}`
-              : `${Math.round(window.utilizationPercent ?? 0)}%`
+              : typeof window.utilizationPercent === 'number'
+                ? `${Math.round(window.utilizationPercent)}%`
+                : `${window.utilizationPercent}`
           }
         />
       ))}
