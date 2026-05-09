@@ -237,12 +237,19 @@ function stripOAuthProviders(config: any): { config: any; removed: string[] } {
 async function waitForServer(timeout = 30000): Promise<void> {
   const url = LOCAL_URL.replace(/\/$/, '');
   const start = Date.now();
+  let consecutiveOk = 0;
+  const requiredOk = 5;
   while (Date.now() - start < timeout) {
     try {
       const res = await fetch(`${url}/health`);
-      if (res.ok) return;
+      if (res.ok) {
+        consecutiveOk++;
+        if (consecutiveOk >= requiredOk) return;
+      } else {
+        consecutiveOk = 0;
+      }
     } catch {
-      // not ready yet
+      consecutiveOk = 0;
     }
     await new Promise((r) => setTimeout(r, 500));
   }

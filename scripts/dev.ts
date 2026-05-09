@@ -17,6 +17,8 @@ function readOptionValue(args: string[], index: number, option: string) {
   return value;
 }
 
+let fullMode = false;
+
 for (let i = 2; i < process.argv.length; i++) {
   const arg = process.argv[i];
 
@@ -143,7 +145,6 @@ console.log(`  ADMIN_KEY:    ${process.env.ADMIN_KEY}`);
 const WIN = process.platform === 'win32';
 
 const childPgids: number[] = [];
-let fullMode = false;
 let isShuttingDown = false;
 
 function spawnManaged(args: string[], cwd: string): ChildProcess {
@@ -198,12 +199,19 @@ console.log('Watching for changes...');
 async function waitForServer(timeout = 30000): Promise<void> {
   const url = `http://localhost:${process.env.PORT}`;
   const start = Date.now();
+  let consecutiveOk = 0;
+  const requiredOk = 5;
   while (Date.now() - start < timeout) {
     try {
-      const res = await fetch(`${url}/v0/health`);
-      if (res.ok) return;
+      const res = await fetch(`${url}/health`);
+      if (res.ok) {
+        consecutiveOk++;
+        if (consecutiveOk >= requiredOk) return;
+      } else {
+        consecutiveOk = 0;
+      }
     } catch {
-      // not ready yet
+      consecutiveOk = 0;
     }
     await new Promise((r) => setTimeout(r, 500));
   }
@@ -231,6 +239,15 @@ if (fullMode) {
       );
       proc.on('error', reject);
     }).catch((err) => console.error(`[full] ${err instanceof Error ? err.message : err}`));
+
+    // prep-dev triggers a server restart after restore, so wait for it to come back up
+    console.log('[full] Waiting for server to restart after restore...');
+    try {
+      await waitForServer();
+      console.log('[full] Server restarted and ready.\n');
+    } catch (err) {
+      console.error(`[full] ${err instanceof Error ? err.message : err}.`);
+    }
   })();
 }
 
