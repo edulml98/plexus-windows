@@ -25,6 +25,7 @@ interface AliasTableRowProps {
     modelId: string,
     types: string[]
   ) => void;
+  onDismissTestMessage: (testKey: string) => void;
 }
 
 export const AliasTableRow: React.FC<AliasTableRowProps> = ({
@@ -36,6 +37,7 @@ export const AliasTableRow: React.FC<AliasTableRowProps> = ({
   onDelete,
   onToggleTarget,
   onTestTarget,
+  onDismissTestMessage,
 }) => {
   return (
     <tr className="hover:bg-bg-hover">
@@ -133,67 +135,79 @@ export const AliasTableRow: React.FC<AliasTableRowProps> = ({
                     : '';
 
                   return (
-                    <div
-                      key={`${t.provider}-${t.model}-${targetIdx}`}
-                      className={`flex items-center gap-2 text-xs transition-opacity ${
-                        isDisabled ? 'opacity-70 line-through text-danger' : 'text-text-secondary'
-                      }`}
-                    >
-                      {isCoolingDown && (
-                        <div
-                          className="flex items-center gap-1 text-warning font-medium text-[11px]"
-                          title={`On cooldown for ${cooldownDisplay}`}
-                        >
-                          <Clock size={12} />
-                          <span>{cooldownDisplay}</span>
-                        </div>
-                      )}
+                    <React.Fragment key={`${t.provider}-${t.model}-${targetIdx}`}>
                       <div
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!isDisabled) {
-                            let testApiTypes: string[] = ['chat'];
-                            if (alias.type === 'embeddings') testApiTypes = ['embeddings'];
-                            else if (alias.type === 'image') testApiTypes = ['images'];
-                            else if (alias.type === 'responses') testApiTypes = ['responses'];
-
-                            onTestTarget(alias.id, testKey, t.provider, t.model, testApiTypes);
-                          }
-                        }}
-                        className={`flex items-center cursor-pointer transition-opacity ${
-                          isDisabled ? 'cursor-not-allowed opacity-50' : 'opacity-100'
-                        } mr-4`}
+                        className={`flex items-center gap-2 text-xs transition-opacity ${
+                          isDisabled ? 'opacity-70 line-through text-danger' : 'text-text-secondary'
+                        }`}
                       >
-                        {testState?.loading ? (
-                          <Loader2 size={14} className="animate-spin text-text-secondary" />
-                        ) : testState?.showResult && testState.result === 'success' ? (
-                          <CheckCircle size={14} className="text-success" />
-                        ) : testState?.showResult && testState.result === 'error' ? (
-                          <XCircle size={14} className="text-danger" />
-                        ) : (
-                          <Play
-                            size={14}
-                            className={`text-primary ${isDisabled ? 'invisible' : 'opacity-60'}`}
-                          />
-                        )}
-                      </div>
-                      <Switch
-                        checked={t.enabled !== false}
-                        onChange={(val) => onToggleTarget(alias, groupIdx, targetIdx, val)}
-                        size="sm"
-                        disabled={isProviderDisabled}
-                      />
-                      <div className="flex-1 truncate">
-                        {t.provider} &rarr; {t.model}
-                        {testState?.showResult && testState.message && (
-                          <span
-                            className={`ml-2 text-[11px] italic ${testState.result === 'success' ? 'text-success' : 'text-danger'}`}
+                        {isCoolingDown && (
+                          <div
+                            className="flex items-center gap-1 text-warning font-medium text-[11px]"
+                            title={`On cooldown for ${cooldownDisplay}`}
                           >
-                            {testState.message}
-                          </span>
+                            <Clock size={12} />
+                            <span>{cooldownDisplay}</span>
+                          </div>
                         )}
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!isDisabled) {
+                              let testApiTypes: string[] = ['chat'];
+                              if (alias.type === 'embeddings') testApiTypes = ['embeddings'];
+                              else if (alias.type === 'image') testApiTypes = ['images'];
+                              else if (alias.type === 'responses') testApiTypes = ['responses'];
+
+                              onTestTarget(alias.id, testKey, t.provider, t.model, testApiTypes);
+                            }
+                          }}
+                          className={`flex items-center cursor-pointer transition-opacity ${
+                            isDisabled ? 'cursor-not-allowed opacity-50' : 'opacity-100'
+                          } mr-4`}
+                        >
+                          {testState?.loading ? (
+                            <Loader2 size={14} className="animate-spin text-text-secondary" />
+                          ) : testState?.showResult && testState.result === 'success' ? (
+                            <CheckCircle size={14} className="text-success" />
+                          ) : testState?.showResult && testState.result === 'error' ? (
+                            <XCircle size={14} className="text-danger" />
+                          ) : (
+                            <Play
+                              size={14}
+                              className={`text-primary ${isDisabled ? 'invisible' : 'opacity-60'}`}
+                            />
+                          )}
+                        </div>
+                        <Switch
+                          checked={t.enabled !== false}
+                          onChange={(val) => onToggleTarget(alias, groupIdx, targetIdx, val)}
+                          size="sm"
+                          disabled={isProviderDisabled}
+                        />
+                        <div className="flex-1 truncate">
+                          {t.provider} &rarr; {t.model}
+                        </div>
                       </div>
-                    </div>
+                      {testState?.showMessage &&
+                        testState.result === 'error' &&
+                        testState.message && (
+                          <div className="mt-1">
+                            <div
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDismissTestMessage(testKey);
+                              }}
+                              className="cursor-pointer rounded border border-danger/30 bg-danger/10 px-2 py-1"
+                              title="Click to dismiss"
+                            >
+                              <span className="text-[11px] italic text-danger">
+                                {testState.message} [×]
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                    </React.Fragment>
                   );
                 })}
               </div>
