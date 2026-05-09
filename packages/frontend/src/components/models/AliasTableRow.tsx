@@ -54,13 +54,16 @@ export const AliasTableRow: React.FC<AliasTableRowProps> = ({
             <Edit2 size={12} className="opacity-50" />
             {alias.id}
           </div>
-          <button
-            onClick={() => onDelete(alias)}
-            className="bg-none border-none cursor-pointer p-1 rounded color-danger opacity-60 transition-opacity hover:opacity-100"
-            title="Delete alias"
-          >
-            <Trash2 size={14} />
-          </button>
+          <div className="flex items-center gap-1">
+            <CopyButton value={alias.id} size="sm" />
+            <button
+              onClick={() => onDelete(alias)}
+              className="bg-none border-none cursor-pointer p-1 rounded color-danger opacity-60 transition-opacity hover:opacity-100"
+              title="Delete alias"
+            >
+              <Trash2 size={14} />
+            </button>
+          </div>
         </div>
       </td>
       <td className="px-4 py-3 text-left border-b border-border-glass text-text">
@@ -72,9 +75,10 @@ export const AliasTableRow: React.FC<AliasTableRowProps> = ({
             {alias.aliases.map((a) => (
               <span
                 key={a}
-                className="inline-flex items-center rounded px-2 py-1 text-xs font-medium border border-border-glass text-text-secondary text-[10px]"
+                className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium border border-border-glass text-text-secondary text-[10px]"
               >
                 {a}
+                <CopyButton value={a} size="sm" />
               </span>
             ))}
           </div>

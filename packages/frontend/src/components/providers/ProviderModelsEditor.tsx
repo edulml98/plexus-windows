@@ -12,6 +12,7 @@ import {
   Download,
   Info,
 } from 'lucide-react';
+import { CopyButton } from '../ui/CopyButton';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
 import { Badge } from '../ui/Badge';
@@ -98,7 +99,13 @@ interface Props {
   setIsModelExtraBodyOpen: React.Dispatch<React.SetStateAction<Record<string, boolean>>>;
   testStates: Record<
     string,
-    { loading: boolean; result?: 'success' | 'error'; message?: string; showResult: boolean; showMessage?: boolean }
+    {
+      loading: boolean;
+      result?: 'success' | 'error';
+      message?: string;
+      showResult: boolean;
+      showMessage?: boolean;
+    }
   >;
   onDismissTestMessage: (testKey: string) => void;
   addModel: () => void;
@@ -209,6 +216,11 @@ export function ProviderModelsEditor({
                         <Play size={14} className="text-primary opacity-60" />
                       )}
                     </div>
+                    <CopyButton
+                      value={`direct/${editingProvider.id}/${mId}`}
+                      size="sm"
+                      className="mr-1"
+                    />
                     <Button
                       size="sm"
                       variant="ghost"
@@ -231,7 +243,9 @@ export function ProviderModelsEditor({
                         className="cursor-pointer rounded border border-danger/30 bg-danger/10 px-2 py-1"
                         title="Click to dismiss"
                       >
-                        <span className="text-[11px] italic text-danger">{testState.message} [×]</span>
+                        <span className="text-[11px] italic text-danger">
+                          {testState.message} [×]
+                        </span>
                       </div>
                     </div>
                   )}

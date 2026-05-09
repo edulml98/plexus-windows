@@ -44,7 +44,10 @@ export const AliasMobileCard: React.FC<Props> = ({
     <article key={alias.id} className="rounded-md border border-border-glass bg-bg-subtle p-3">
       <div className="flex items-start justify-between gap-3">
         <button type="button" onClick={() => onEdit(alias)} className="min-w-0 flex-1 text-left">
-          <div className="truncate font-heading text-sm font-semibold text-text">{alias.id}</div>
+          <div className="flex items-center gap-2">
+            <div className="truncate font-heading text-sm font-semibold text-text">{alias.id}</div>
+            <CopyButton value={alias.id} size="sm" />
+          </div>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <ModelTypeBadge type={alias.type} />
             {alias.metadata && (
@@ -75,8 +78,15 @@ export const AliasMobileCard: React.FC<Props> = ({
         </div>
         <div className="min-w-0 rounded border border-border-glass bg-bg-glass px-2 py-1.5">
           <div className="text-[10px] uppercase tracking-wider text-text-muted">Aliases</div>
-          <div className="truncate font-medium text-text-secondary">
-            {alias.aliases?.length ? alias.aliases.join(', ') : '-'}
+          <div className="flex flex-wrap gap-1 font-medium text-text-secondary">
+            {alias.aliases?.length
+              ? alias.aliases.map((a) => (
+                  <span key={a} className="inline-flex items-center gap-1">
+                    <span className="text-xs">{a}</span>
+                    <CopyButton value={a} size="sm" />
+                  </span>
+                ))
+              : '-'}
           </div>
         </div>
       </div>
@@ -195,7 +205,9 @@ export const AliasMobileCard: React.FC<Props> = ({
                       className="mt-2 cursor-pointer rounded border border-danger/30 bg-danger/10 px-2 py-1"
                       title="Click to dismiss"
                     >
-                      <span className="text-[11px] italic text-danger">{testState.message} [×]</span>
+                      <span className="text-[11px] italic text-danger">
+                        {testState.message} [×]
+                      </span>
                     </div>
                   )}
                 </div>
