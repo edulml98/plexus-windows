@@ -4,6 +4,8 @@
 
 <img src="docs/images/plexus_logo_transparent.png" alt="Plexus Logo" width="120"/>
 
+### 💬 [Join the Plexus Discord Community](https://discord.com/channels/292942011261124608/1503831216095367239) — generously hosted by [Linux.chat](https://linux.chat)
+
 ### [🚀 API Reference](/docs/openapi/openapi.yaml) | [⚙️ Configuration](docs/CONFIGURATION.md) | [📦 Installation](docs/INSTALLATION.md) | [🔬 Testing](docs/TESTING.md)
 
 Plexus is a high-performance API gateway that unifies access to multiple AI providers (OpenAI, Anthropic, Google, GitHub Copilot, and more) under a single endpoint. Switch models and providers without rewriting client code.
