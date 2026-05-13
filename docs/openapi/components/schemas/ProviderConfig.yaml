@@ -104,7 +104,7 @@ properties:
               type: object
               additionalProperties: true
               description: Extra fields merged into the request body for this model.
-          adapter:
+            adapter:
               oneOf:
                 - type: string
                 - type: array

@@ -55,6 +55,11 @@ pre-commit:
       glob: "packages/frontend/src/**"
       run: bun run build:frontend
 
+    # --- OpenAPI spec lint (only when OpenAPI docs change) -----------------
+    openapi-lint:
+      glob: "docs/openapi/**"
+      run: bun run lint:openapi
+
     # --- Backend tests (only when backend source changes) --------------------
     backend-tests:
       glob: "packages/backend/src/**"
