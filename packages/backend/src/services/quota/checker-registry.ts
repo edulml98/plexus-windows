@@ -45,6 +45,7 @@ interface AllowanceParams {
 
 export interface CheckerDefinition<TOptions extends z.ZodTypeAny = z.ZodTypeAny> {
   type: string;
+  displayName: string;
   optionsSchema: TOptions;
   check(ctx: MeterContext): Promise<Meter[]>;
 }
@@ -62,6 +63,10 @@ export function defineChecker<TOptions extends z.ZodTypeAny>(
 
 export function getCheckerTypes(): string[] {
   return Array.from(REGISTRY.keys());
+}
+
+export function getCheckerDefinitions(): CheckerDefinition[] {
+  return Array.from(REGISTRY.values());
 }
 
 export function getCheckerDefinition(type: string): CheckerDefinition | undefined {
@@ -172,6 +177,10 @@ export function createMeterContext(
 // ── Import all checkers to trigger self-registration ─────────────────────────
 // This file must be imported once at startup. Each checker file calls
 // defineChecker() at module load time, which populates REGISTRY.
+//
+// TODO: when Bun ships import.meta.glob (PR #21459), replace the explicit
+// imports below with:
+//   const mods = import.meta.glob('./checkers/*-checker.ts', { eager: true });
 
 export async function loadAllCheckers(): Promise<void> {
   await import('./checkers/naga-checker');
