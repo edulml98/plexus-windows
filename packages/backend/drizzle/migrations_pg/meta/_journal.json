@@ -351,6 +351,13 @@
       "when": 1778724556699,
       "tag": "0049_bouncy_scrambler",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1778735856746,
+      "tag": "0050_marvelous_jackal",
+      "breakpoints": true
     }
   ]
 }
