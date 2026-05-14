@@ -282,45 +282,26 @@ export function ModelMetadataEditor({ editingAlias, setEditingAlias, isModalOpen
               </label>
               <p className="font-body text-[11px] text-text-muted" style={{ marginBottom: '6px' }}>
                 Advertised in <code className="text-primary">/v1/models</code> to inform clients of
-                the recommended API surface(s) for this alias.
+                the recommended API surface for this alias.
               </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {(
-                  [
-                    ['chat_completions', 'Chat Completions', '/v1/chat/completions'],
-                    ['messages', 'Messages', '/v1/messages'],
-                    ['gemini', 'Gemini', 'Google Gemini API'],
-                    ['responses', 'Responses', '/v1/responses'],
-                  ] as [PreferredApiValue, string, string][]
-                ).map(([value, label, description]) => {
-                  const checked = (editingAlias.preferred_api ?? []).includes(value);
-                  return (
-                    <label key={value} className="flex items-start gap-2 cursor-pointer py-0.5">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={(e) => {
-                          const current = editingAlias.preferred_api ?? [];
-                          const next = e.target.checked
-                            ? [...current, value]
-                            : current.filter((v) => v !== value);
-                          setEditingAlias({
-                            ...editingAlias,
-                            preferred_api: next.length > 0 ? next : undefined,
-                          });
-                        }}
-                        className="mt-0.5 accent-primary"
-                      />
-                      <span>
-                        <span className="font-body text-[12px] text-text">{label}</span>
-                        <span className="font-body text-[11px] text-text-muted ml-1.5">
-                          {description}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
+              <select
+                className="w-full font-body text-xs text-text bg-bg-glass border border-border-glass rounded-sm outline-none transition-all duration-200 backdrop-blur-md focus:border-primary"
+                style={{ padding: '5px 8px', height: '30px' }}
+                value={(editingAlias.preferred_api ?? [])[0] ?? ''}
+                onChange={(e) => {
+                  const val = e.target.value as PreferredApiValue | '';
+                  setEditingAlias({
+                    ...editingAlias,
+                    preferred_api: val ? [val] : undefined,
+                  });
+                }}
+              >
+                <option value="">None</option>
+                <option value="chat_completions">Chat Completions (/v1/chat/completions)</option>
+                <option value="messages">Messages (/v1/messages)</option>
+                <option value="gemini">Gemini (Google Gemini API)</option>
+                <option value="responses">Responses (/v1/responses)</option>
+              </select>
             </div>
 
             {/* Override toggle + editable form */}
