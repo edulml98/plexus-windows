@@ -10,7 +10,7 @@ jobs:
     if: contains(github.event.comment.body, '/pi')
     runs-on: ubuntu-latest
     env:
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}:${{ github.job }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}:${{ github.repository }}|${{ github.workflow }}|${{ github.job }}
     permissions:
       contents: write
       issues: write

@@ -98,7 +98,7 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     env:
-      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}:${{ github.job }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}:${{ github.repository }}|${{ github.workflow }}|${{ github.job }}
     outputs:
       notes: ${{ steps.read_notes.outputs.notes }}
     steps:
