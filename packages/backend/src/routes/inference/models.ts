@@ -22,6 +22,7 @@ export async function registerModelsRoute(fastify: FastifyInstance) {
     const metadataManager = ModelMetadataManager.getInstance();
 
     const created = Math.floor(Date.now() / 1000);
+    const hasVisionFallthrough = !!config.vision_fallthrough;
 
     const models = Object.entries(config.models).map(([aliasId, modelConfig]) => {
       const metaConfig = modelConfig?.metadata;
@@ -54,6 +55,15 @@ export async function registerModelsRoute(fastify: FastifyInstance) {
       };
 
       if (!metaConfig) {
+        if (hasVisionFallthrough && modelConfig.use_image_fallthrough) {
+          return {
+            ...base,
+            architecture: {
+              input_modalities: ['text', 'image'],
+              output_modalities: ['text'],
+            },
+          };
+        }
         return base;
       }
 
@@ -72,10 +82,19 @@ export async function registerModelsRoute(fastify: FastifyInstance) {
         }
       }
       if (!enriched) {
+        if (hasVisionFallthrough && modelConfig.use_image_fallthrough) {
+          return {
+            ...base,
+            architecture: {
+              input_modalities: ['text', 'image'],
+              output_modalities: ['text'],
+            },
+          };
+        }
         return base;
       }
 
-      return {
+      const result: Record<string, unknown> = {
         ...base,
         name: enriched.name,
         ...(enriched.description !== undefined && { description: enriched.description }),
@@ -87,6 +106,25 @@ export async function registerModelsRoute(fastify: FastifyInstance) {
         }),
         ...(enriched.top_provider !== undefined && { top_provider: enriched.top_provider }),
       };
+
+      if (hasVisionFallthrough && modelConfig.use_image_fallthrough) {
+        const arch = (result.architecture ?? {}) as Record<string, unknown>;
+        const inputModalities = (arch.input_modalities as string[] | undefined) ?? [];
+        if (!inputModalities.includes('image')) {
+          result.architecture = {
+            ...arch,
+            input_modalities: [...inputModalities, 'image'],
+          };
+        }
+        if (!arch.output_modalities) {
+          result.architecture = {
+            ...(result.architecture as Record<string, unknown>),
+            output_modalities: ['text'],
+          };
+        }
+      }
+
+      return result;
     });
 
     return reply.send({

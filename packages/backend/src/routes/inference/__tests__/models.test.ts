@@ -100,6 +100,132 @@ describe('GET /v1/models', () => {
   });
 });
 
+// ─── Vision fallthrough modality injection ──────────────
+
+describe('GET /v1/models – vision fallthrough modalities', () => {
+  it('should add image to input_modalities when use_image_fallthrough is true without metadata', async () => {
+    const fastify = Fastify();
+    await registerModelsRoute(fastify);
+
+    setConfigForTesting({
+      vision_fallthrough: { descriptor_model: 'test-descriptor', descriptor_provider: 'openai' },
+      models: {
+        'vf-model': { targets: [], use_image_fallthrough: true },
+        'no-vf-model': { targets: [] },
+      },
+    } as unknown as PlexusConfig);
+
+    const response = await fastify.inject({ method: 'GET', url: '/v1/models' });
+    expect(response.statusCode).toBe(200);
+
+    const data = response.json().data;
+    const vfModel = data.find((m: any) => m.id === 'vf-model');
+    const noVfModel = data.find((m: any) => m.id === 'no-vf-model');
+
+    expect(vfModel.architecture.input_modalities).toEqual(['text', 'image']);
+    expect(vfModel.architecture.output_modalities).toEqual(['text']);
+    expect(noVfModel.architecture).toBeUndefined();
+  });
+
+  it('should not add image when vision_fallthrough is not configured globally', async () => {
+    const fastify = Fastify();
+    await registerModelsRoute(fastify);
+
+    setConfigForTesting({
+      models: {
+        'vf-model': { targets: [], use_image_fallthrough: true },
+      },
+    } as unknown as PlexusConfig);
+
+    const response = await fastify.inject({ method: 'GET', url: '/v1/models' });
+    expect(response.statusCode).toBe(200);
+
+    const model = response.json().data[0];
+    expect(model.architecture).toBeUndefined();
+  });
+
+  it('should inject image into existing modalities when metadata is present', async () => {
+    const mgr = ModelMetadataManager.getInstance();
+    await mgr.loadAll({
+      openrouter: openrouterMetadataFixture,
+      modelsDev: '/nonexistent',
+      catwalk: '/nonexistent',
+    });
+
+    const fastify = Fastify();
+    await registerModelsRoute(fastify);
+
+    setConfigForTesting({
+      vision_fallthrough: { descriptor_model: 'test-descriptor', descriptor_provider: 'openai' },
+      models: {
+        'text-only-model': {
+          targets: [],
+          use_image_fallthrough: true,
+          metadata: {
+            source: 'custom',
+            overrides: {
+              name: 'Text Only Model',
+              architecture: {
+                input_modalities: ['text'],
+                output_modalities: ['text'],
+              },
+            },
+          },
+        },
+      },
+    } as unknown as PlexusConfig);
+
+    const response = await fastify.inject({ method: 'GET', url: '/v1/models' });
+    expect(response.statusCode).toBe(200);
+
+    const model = response.json().data[0];
+    expect(model.architecture.input_modalities).toContain('image');
+    expect(model.architecture.input_modalities).toContain('text');
+    expect(model.architecture.output_modalities).toEqual(['text']);
+  });
+
+  it('should not duplicate image if already in input_modalities', async () => {
+    const mgr = ModelMetadataManager.getInstance();
+    await mgr.loadAll({
+      openrouter: openrouterMetadataFixture,
+      modelsDev: '/nonexistent',
+      catwalk: '/nonexistent',
+    });
+
+    const fastify = Fastify();
+    await registerModelsRoute(fastify);
+
+    setConfigForTesting({
+      vision_fallthrough: { descriptor_model: 'test-descriptor', descriptor_provider: 'openai' },
+      models: {
+        'vision-model': {
+          targets: [],
+          use_image_fallthrough: true,
+          metadata: {
+            source: 'custom',
+            overrides: {
+              name: 'Vision Model',
+              architecture: {
+                input_modalities: ['text', 'image'],
+                output_modalities: ['text'],
+              },
+            },
+          },
+        },
+      },
+    } as unknown as PlexusConfig);
+
+    const response = await fastify.inject({ method: 'GET', url: '/v1/models' });
+    expect(response.statusCode).toBe(200);
+
+    const model = response.json().data[0];
+    const imageCount = model.architecture.input_modalities.filter(
+      (m: string) => m === 'image'
+    ).length;
+    expect(imageCount).toBe(1);
+  });
+});
+
 // ─── Metadata enrichment ───────────────────────────────────
 
 describe('GET /v1/models – with metadata', () => {
