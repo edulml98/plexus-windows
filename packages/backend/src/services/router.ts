@@ -8,6 +8,7 @@ import {
   type ModelConfig,
   type ModelTargetGroup,
 } from '../config';
+import { BackgroundExplorer } from './background-explorer';
 import { CooldownManager } from './cooldown-manager';
 import { SelectorFactory } from './selectors/factory';
 import { EnrichedModelTarget } from './selectors/base';
@@ -227,6 +228,8 @@ export class Router {
 
           const ordered = await selectOrderedTargets(group.selector, enriched);
 
+          BackgroundExplorer.getInstance()?.maybeTrigger(group);
+
           const results: RouteResult[] = [];
           for (const target of ordered) {
             const providerConfig = config.providers[target.provider];
@@ -284,6 +287,8 @@ export class Router {
       if (enriched.length === 0) continue;
 
       const ordered = await selectOrderedTargets(group.selector, enriched);
+
+      BackgroundExplorer.getInstance()?.maybeTrigger(group);
 
       for (const target of ordered) {
         const providerConfig = config.providers[target.provider];
@@ -362,6 +367,8 @@ export class Router {
               );
             }
 
+            BackgroundExplorer.getInstance()?.maybeTrigger(group);
+
             const providerConfig = config.providers[target.provider];
             if (!providerConfig) {
               throw new Error(`Provider '${target.provider}' not found`);
@@ -412,6 +419,8 @@ export class Router {
         const target = await selector.select(enriched);
 
         if (!target) continue;
+
+        BackgroundExplorer.getInstance()?.maybeTrigger(group);
 
         const providerConfig = config.providers[target.provider];
         if (!providerConfig) {

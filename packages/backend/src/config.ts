@@ -663,6 +663,12 @@ const VisionFallthroughConfigSchema = z.object({
   default_prompt: z.string().default(DEFAULT_VISION_DESCRIPTION_PROMPT),
 });
 
+const BackgroundExplorationConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  stalenessThresholdSeconds: z.number().int().min(1).default(600),
+  workerConcurrency: z.number().int().min(1).max(16).default(2),
+});
+
 const RawPlexusConfigSchema = z
   .object({
     providers: z.record(z.string(), ProviderConfigSchema),
@@ -674,6 +680,7 @@ const RawPlexusConfigSchema = z
     performanceExplorationRate: z.number().min(0).max(1).default(0.05).optional(),
     latencyExplorationRate: z.number().min(0).max(1).default(0.05).optional(),
     e2ePerformanceExplorationRate: z.number().min(0).max(1).default(0.05).optional(),
+    backgroundExploration: BackgroundExplorationConfigSchema.optional(),
     mcp_servers: z.record(z.string(), McpServerConfigSchema).optional(),
     user_quotas: z.record(z.string(), QuotaDefinitionSchema).optional(),
   })
@@ -681,6 +688,7 @@ const RawPlexusConfigSchema = z
 
 export type FailoverPolicy = z.infer<typeof FailoverPolicySchema>;
 export type CooldownPolicy = z.infer<typeof CooldownPolicySchema>;
+export type BackgroundExplorationConfig = z.infer<typeof BackgroundExplorationConfigSchema>;
 export type PlexusConfig = z.infer<typeof RawPlexusConfigSchema> & {
   failover: FailoverPolicy;
   cooldown?: CooldownPolicy;
