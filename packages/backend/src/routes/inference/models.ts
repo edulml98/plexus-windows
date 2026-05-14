@@ -48,6 +48,8 @@ export async function registerModelsRoute(fastify: FastifyInstance) {
         ...(modelConfig?.preferred_api !== undefined && {
           preferred_api: modelConfig.preferred_api,
         }),
+        ...(piModelConfig && { pi_provider: piModelConfig.provider }),
+        ...(piModelConfig && { pi_model: piModelConfig.model_id }),
         ...(piOptions !== undefined && { pi_options: piOptions }),
       };
 
