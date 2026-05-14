@@ -34,6 +34,7 @@ export const modelAliases = pgTable('model_aliases', {
   enforceLimits: boolean('enforce_limits').notNull().default(false),
   stickySession: boolean('sticky_session').notNull().default(false),
   preferredApi: jsonb('preferred_api'), // ('chat_completions' | 'messages' | 'gemini' | 'responses')[]
+  piModel: jsonb('pi_model'), // { provider: string, model_id: string }
   targetGroups: jsonb('target_groups'), // {name, selector}[]
   createdAt: bigint('created_at', { mode: 'number' }).notNull(),
   updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),

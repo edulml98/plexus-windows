@@ -393,6 +393,7 @@ export interface Alias {
   enforce_limits?: boolean;
   sticky_session?: boolean;
   preferred_api?: Array<PreferredApiValue>;
+  pi_model?: { provider: string; model_id: string };
 }
 
 export interface InferenceError {
@@ -1820,6 +1821,7 @@ export const api = {
       ...(alias.type && { type: alias.type }),
       ...(alias.advanced && alias.advanced.length > 0 && { advanced: alias.advanced }),
       ...(alias.metadata && { metadata: alias.metadata }),
+      ...(alias.pi_model && { pi_model: alias.pi_model }),
       // Model architecture override for inference energy calculation
       ...(alias.model_architecture && { model_architecture: alias.model_architecture }),
       target_groups: alias.target_groups.map((g) => ({
@@ -1942,6 +1944,7 @@ export const api = {
           metadata: val.metadata,
           model_architecture: val.model_architecture,
           preferred_api: val.preferred_api || [],
+          pi_model: val.pi_model,
         });
       });
       return aliases;
@@ -2525,6 +2528,25 @@ export const api = {
       throw new Error(`Failed to look up model metadata: ${res.statusText}`);
     }
     const json = (await res.json()) as { data: NormalizedModelMetadata };
+    return json.data;
+  },
+
+  getPiProviders: async (): Promise<string[]> => {
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/pi/providers`);
+    if (!res.ok) throw new Error('Failed to fetch pi providers');
+    const json = (await res.json()) as { data: string[] };
+    return json.data;
+  },
+
+  getPiModels: async (
+    provider: string,
+    q?: string
+  ): Promise<Array<{ id: string; name: string; api: string }>> => {
+    const params = new URLSearchParams({ provider });
+    if (q) params.set('q', q);
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/pi/models?${params}`);
+    if (!res.ok) throw new Error('Failed to fetch pi models');
+    const json = (await res.json()) as { data: Array<{ id: string; name: string; api: string }> };
     return json.data;
   },
 

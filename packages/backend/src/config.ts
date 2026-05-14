@@ -594,6 +594,13 @@ export const ModelConfigSchema = z
       .optional(),
     advanced: z.array(ModelBehaviorSchema).optional(),
     metadata: ModelMetadataSchema.optional(),
+    // pi-ai model reference: when set, pi_options (compat) will be included in GET /v1/models
+    pi_model: z
+      .object({
+        provider: z.string().min(1),
+        model_id: z.string().min(1),
+      })
+      .optional(),
     // Model architecture override for inference energy calculation
     model_architecture: z
       .object({

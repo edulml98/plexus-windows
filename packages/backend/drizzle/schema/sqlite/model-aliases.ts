@@ -16,6 +16,7 @@ export const modelAliases = sqliteTable('model_aliases', {
   enforceLimits: integer('enforce_limits').notNull().default(0),
   stickySession: integer('sticky_session').notNull().default(0),
   preferredApi: text('preferred_api'), // JSON: ('chat_completions' | 'messages' | 'gemini' | 'responses')[]
+  piModel: text('pi_model'), // JSON: { provider: string, model_id: string }
   targetGroups: text('target_groups'), // JSON: {name, selector}[]
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),

@@ -678,6 +678,7 @@ export class ConfigRepository {
       enforceLimits: fromBool(config.enforce_limits === true),
       stickySession: fromBool(config.sticky_session === true),
       preferredApi: config.preferred_api ? toJson(config.preferred_api) : null,
+      piModel: config.pi_model ? toJson(config.pi_model) : null,
       targetGroups:
         config.target_groups && config.target_groups.length > 0
           ? toJson(config.target_groups.map((g) => ({ name: g.name, selector: g.selector })))
@@ -818,6 +819,7 @@ export class ConfigRepository {
       // Model architecture override for inference energy calculation
       ...(row.modelArchitecture ? { model_architecture: parseJson(row.modelArchitecture) } : {}),
       ...(row.preferredApi ? { preferred_api: parseJson(row.preferredApi) } : {}),
+      ...(row.piModel ? { pi_model: parseJson(row.piModel) } : {}),
     };
 
     if (row.metadataSource) {

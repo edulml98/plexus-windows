@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { getConfig } from '../../config';
 import { PricingManager } from '../../services/pricing-manager';
 import { ModelMetadataManager, mergeOverrides } from '../../services/model-metadata-manager';
+import { getModel } from '@earendil-works/pi-ai';
 
 export async function registerModelsRoute(fastify: FastifyInstance) {
   /**
@@ -24,6 +25,20 @@ export async function registerModelsRoute(fastify: FastifyInstance) {
 
     const models = Object.entries(config.models).map(([aliasId, modelConfig]) => {
       const metaConfig = modelConfig?.metadata;
+      const piModelConfig = modelConfig?.pi_model;
+
+      // Look up pi compat options if a pi model reference is configured.
+      let piOptions: Record<string, unknown> | undefined;
+      if (piModelConfig) {
+        try {
+          const piModel = getModel(piModelConfig.provider as any, piModelConfig.model_id as any);
+          if (piModel?.compat && Object.keys(piModel.compat).length > 0) {
+            piOptions = piModel.compat as Record<string, unknown>;
+          }
+        } catch {
+          // Unknown provider or model — skip silently.
+        }
+      }
 
       const base = {
         id: aliasId,
@@ -33,6 +48,7 @@ export async function registerModelsRoute(fastify: FastifyInstance) {
         ...(modelConfig?.preferred_api !== undefined && {
           preferred_api: modelConfig.preferred_api,
         }),
+        ...(piOptions !== undefined && { pi_options: piOptions }),
       };
 
       if (!metaConfig) {
