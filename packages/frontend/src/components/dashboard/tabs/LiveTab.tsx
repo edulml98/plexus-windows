@@ -43,7 +43,21 @@ import { SortableContext } from '@dnd-kit/sortable';
 //
 // IMPORTS -- Icons (lucide-react)
 //
-import { AlertTriangle, Clock, Cpu, Info, RefreshCw, Server, Signal, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Ban,
+  CheckCircle,
+  Clock,
+  Cpu,
+  Info,
+  Plane,
+  RefreshCw,
+  Server,
+  Signal,
+  Timer,
+  X,
+  XCircle,
+} from 'lucide-react';
 
 //
 // IMPORTS -- UI components (internal)
@@ -105,6 +119,7 @@ import {
   formatTPS,
 } from '../../../lib/format';
 import { formatMsToMinSec } from '@plexus/shared';
+import { clsx } from 'clsx';
 import { useAuth } from '../../../contexts/AuthContext';
 import { useToast } from '../../../contexts/ToastContext';
 
@@ -1916,7 +1931,6 @@ export const LiveTab: React.FC<LiveTabProps> = ({
                   Math.floor((Date.now() - new Date(request.date).getTime()) / 1000)
                 );
                 const status = (request.responseStatus || 'errored').toLowerCase();
-                const isSuccess = status.toLowerCase() === 'success';
                 const providerLabel = getProviderLabel(request);
                 const modelLabel = getModelLabel(request);
                 return (
@@ -1929,12 +1943,30 @@ export const LiveTab: React.FC<LiveTabProps> = ({
                         <span className="text-base text-text font-medium">{providerLabel}</span>
                         <span className="text-sm text-text-secondary">{modelLabel}</span>
                         <span
-                          className={
-                            isSuccess
-                              ? 'text-xs px-2 py-0.5 rounded-md text-success bg-emerald-500/15 border border-success/25'
-                              : 'text-xs px-2 py-0.5 rounded-md text-danger bg-red-500/15 border border-danger/30'
-                          }
+                          className={clsx(
+                            'inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border',
+                            status === 'success'
+                              ? 'text-success bg-emerald-500/15 border-success/25'
+                              : status === 'pending'
+                                ? 'text-warning bg-yellow-500/15 border-warning/25'
+                                : status === 'cancelled'
+                                  ? 'text-blue-400 bg-blue-500/15 border-blue-400/25'
+                                  : status === 'timeout'
+                                    ? 'text-orange-400 bg-orange-500/15 border-orange-400/25'
+                                    : 'text-danger bg-red-500/15 border-danger/30'
+                          )}
                         >
+                          {status === 'success' ? (
+                            <CheckCircle size={11} />
+                          ) : status === 'pending' ? (
+                            <Plane size={11} className="animate-pulse" />
+                          ) : status === 'cancelled' ? (
+                            <Ban size={11} />
+                          ) : status === 'timeout' ? (
+                            <Timer size={11} />
+                          ) : (
+                            <XCircle size={11} />
+                          )}
                           {status}
                         </span>
                       </div>
@@ -2772,7 +2804,6 @@ export const LiveTab: React.FC<LiveTabProps> = ({
                         Math.floor((Date.now() - new Date(request.date).getTime()) / 1000)
                       );
                       const status = (request.responseStatus || 'errored').toLowerCase();
-                      const isSuccess = status.toLowerCase() === 'success';
                       const providerLabel = getProviderLabel(request);
                       const modelLabel = getModelLabel(request);
 
@@ -2786,12 +2817,30 @@ export const LiveTab: React.FC<LiveTabProps> = ({
                               <span className="text-sm text-text font-medium">{providerLabel}</span>
                               <span className="text-xs text-text-secondary">{modelLabel}</span>
                               <span
-                                className={
-                                  isSuccess
-                                    ? 'text-[11px] px-2 py-0.5 rounded-md text-success bg-emerald-500/15 border border-success/25'
-                                    : 'text-[11px] px-2 py-0.5 rounded-md text-danger bg-red-500/15 border border-danger/30'
-                                }
+                                className={clsx(
+                                  'inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md border',
+                                  status === 'success'
+                                    ? 'text-success bg-emerald-500/15 border-success/25'
+                                    : status === 'pending'
+                                      ? 'text-warning bg-yellow-500/15 border-warning/25'
+                                      : status === 'cancelled'
+                                        ? 'text-blue-400 bg-blue-500/15 border-blue-400/25'
+                                        : status === 'timeout'
+                                          ? 'text-orange-400 bg-orange-500/15 border-orange-400/25'
+                                          : 'text-danger bg-red-500/15 border-danger/30'
+                                )}
                               >
+                                {status === 'success' ? (
+                                  <CheckCircle size={10} />
+                                ) : status === 'pending' ? (
+                                  <Plane size={10} className="animate-pulse" />
+                                ) : status === 'cancelled' ? (
+                                  <Ban size={10} />
+                                ) : status === 'timeout' ? (
+                                  <Timer size={10} />
+                                ) : (
+                                  <XCircle size={10} />
+                                )}
                                 {status}
                               </span>
                             </div>

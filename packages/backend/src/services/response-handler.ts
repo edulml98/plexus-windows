@@ -36,7 +36,8 @@ export async function handleResponse(
   shouldEstimateTokens: boolean = false,
   originalRequest?: any,
   quotaEnforcer?: QuotaEnforcer,
-  keyName?: string
+  keyName?: string,
+  abortController?: AbortController
 ) {
   // Populate usage record with metadata from the dispatcher's selection
   usageRecord.selectedModelName = unifiedResponse.plexus?.model || unifiedResponse.model; // Fallback to unifiedResponse.model if plexus.model is missing
@@ -185,15 +186,163 @@ export async function handleResponse(
     // rawLogInspector is already tapped via the TransformStream above
     const pipeline = nodeStream.pipe(usageInspector);
 
-    // Restore debug mode state when the stream ends (not before!)
+    // =============================================================================
+    // CLIENT DISCONNECT DETECTION & UPSTREAM CANCELLATION
+    // =============================================================================
+    //
+    // BACKGROUND — WHY THIS IS HARD ON BUN
+    // -------------------------------------
+    // Detecting client disconnects in Bun's node:http compatibility layer (which
+    // Fastify uses) is deeply broken for streaming POST responses as of Bun 1.3.14.
+    // We investigated every standard Node.js mechanism exhaustively:
+    //
+    //   ✗  request.raw.once('close', ...)  — fires immediately when the POST body
+    //        is consumed (a few ms after the request arrives), NOT on client disconnect.
+    //        Fastify's own onRequestAbort hook uses this + req.aborted, which is why
+    //        Fastify's abort detection also doesn't work here.
+    //
+    //   ✗  socket.once('close', ...)  — never fires at all for POST requests when
+    //        the client disconnects. (Bun open issue #14697: ServerResponse doesn't
+    //        emit close event.)
+    //
+    //   ✗  socket.destroyed  — stays false indefinitely even after the client is gone.
+    //
+    //   ✗  res.write() EPIPE  — Bun silently swallows write failures; writes appear
+    //        to succeed even when the client TCP connection is long dead. No EPIPE,
+    //        no ECONNRESET, nothing. (Confirmed in Bun issue #25919, still reproducible
+    //        on Bun 1.3.14 for the streaming proxy case.)
+    //
+    //   ✗  reply.raw.destroyed  — undefined (property doesn't exist on Bun's
+    //        ServerResponse implementation).
+    //
+    // For reference, Bun.serve() (the native HTTP server) DOES correctly fire
+    // request.signal abort on disconnect. But Fastify runs on node:http, not
+    // Bun.serve(), so we can't use that here without a much larger refactor.
+    //
+    // THE SOLUTION — bunHandle.closed
+    // --------------------------------
+    // Bun's Node.js Socket wraps an internal Bun TCP socket handle. It is stored
+    // under Symbol(handle) on the Socket object. This handle has a .closed boolean
+    // property that transitions false → true when the underlying TCP connection
+    // closes, even when all the Node.js-layer signals above are broken.
+    //
+    // Discovery: we enumerated Object.getOwnPropertySymbols() on the Socket at
+    // runtime, found Symbol(handle), and verified with polling tests that its
+    // .closed property updates correctly within ~250ms of a client disconnect.
+    //
+    // If Bun ever fixes the node:http disconnect signals, we can simplify this.
+    // Track: https://github.com/oven-sh/bun/issues/25919
+    //        https://github.com/oven-sh/bun/issues/14697
+    //
+    // CANCELLATION CHAIN — WHY nodeStream.destroy() IS REQUIRED
+    // -----------------------------------------------------------
+    // The stream pipeline is:
+    //
+    //   fetch response body  (Web ReadableStream)
+    //       ↓  Readable.fromWeb()
+    //   nodeStream           (Node.js Readable)
+    //       ↓  .pipe()
+    //   pipeline / usageInspector  (Node.js Transform/Writable)
+    //       ↓  reply.send()
+    //   HTTP response to client
+    //
+    // When a client disconnects, we need to cancel the upstream fetch so we stop
+    // consuming tokens and burning API quota. Simply calling pipeline.destroy()
+    // (the downstream end) does NOT propagate cancel() back through Readable.fromWeb()
+    // to the underlying Web ReadableStream — the upstream fetch keeps running.
+    //
+    // Calling nodeStream.destroy() (the source Node Readable) DOES cause
+    // Readable.fromWeb() to call cancel() on the Web ReadableStream, which aborts
+    // the underlying fetch. We verified this with isolated test scripts.
+    //
+    // We also call abortController.abort() as belt-and-suspenders, since the fetch
+    // was initiated with that signal.
+    //
+    // TIMEOUT ABORTS HAVE THE SAME BUG
+    // ---------------------------------
+    // abortController.abort() alone (whether triggered by a timeout or anything else)
+    // also does NOT stop an already-in-progress Readable.fromWeb() read loop. The
+    // abort signal is consumed by fetch() at call time; aborting it afterwards has
+    // no effect on the streaming body read. nodeStream.destroy() is required in all
+    // cases. We wire abortController.signal's 'abort' event to onDisconnect() so
+    // that any future timeout wiring (e.g. AbortSignal.any([signal, AbortSignal.timeout(ms)]))
+    // at the route level will automatically flow through the correct cancellation path
+    // with no further changes needed here. See test-timeout-*.ts.
+    // =============================================================================
+    let disconnected = false;
+    let disconnectPoll: ReturnType<typeof setInterval> | null = null;
+
+    const rawSocket = (request.raw as any)?.socket;
+    const symHandle = rawSocket
+      ? Object.getOwnPropertySymbols(rawSocket).find((s) => s.toString() === 'Symbol(handle)')
+      : undefined;
+    const bunHandle = symHandle ? (rawSocket as any)[symHandle] : null;
+
+    const onDisconnect = (source: string) => {
+      if (disconnected) return;
+      disconnected = true;
+      logger.debug(
+        `Client disconnected for request ${usageRecord.requestId} (detected via ${source}), aborting upstream`
+      );
+      abortController?.abort();
+      nodeStream.destroy(); // cancels the upstream fetch via Readable.fromWeb → cancel()
+      pipeline.destroy();
+    };
+
+    if (abortController) {
+      // Wire the abort signal so that timeout aborts (e.g. AbortSignal.timeout() or
+      // AbortSignal.any([clientSignal, AbortSignal.timeout(ms)])) also trigger
+      // nodeStream.destroy(). abortController.abort() alone does NOT stop an
+      // already-in-progress Readable.fromWeb() read loop — the same root cause as
+      // the client-disconnect bug. This listener ensures any abort reason goes through
+      // the correct cancellation path. See test-timeout-signal-listener.ts.
+      abortController.signal.addEventListener('abort', () => onDisconnect('signal.abort'), {
+        once: true,
+      });
+
+      // Poll bunHandle.closed every 250ms — the only reliable client-disconnect
+      // signal available in Bun's node:http layer for POST requests (see above).
+      disconnectPoll = setInterval(() => {
+        if (bunHandle?.closed) onDisconnect('bunHandle.closed');
+        if (pipeline.destroyed || pipeline.readableEnded) {
+          if (disconnectPoll) {
+            clearInterval(disconnectPoll);
+            disconnectPoll = null;
+          }
+        }
+      }, 250);
+    }
+
+    const cleanupDisconnectWiring = () => {
+      if (disconnectPoll) {
+        clearInterval(disconnectPoll);
+        disconnectPoll = null;
+      }
+    };
+
+    pipeline.once('end', cleanupDisconnectWiring);
+
+    pipeline.on('error', (err: any) => {
+      // Belt-and-suspenders: catch any write errors that do surface (e.g. if Bun
+      // ever fixes EPIPE propagation, or on non-Bun runtimes).
+      const code = err?.code;
+      if (code === 'EPIPE' || code === 'ECONNRESET' || code === 'ERR_STREAM_DESTROYED') {
+        onDisconnect('pipeline.error.' + code);
+      }
+      cleanupDisconnectWiring();
+      // Restore debug mode on error
+      if (shouldEstimateTokens && !wasDebugEnabled) {
+        debugManager.setEnabled(false);
+      }
+    });
+
+    // Restore debug mode on normal end
     if (shouldEstimateTokens && !wasDebugEnabled) {
       pipeline.on('end', () => {
         debugManager.setEnabled(false);
       });
-      pipeline.on('error', () => {
-        debugManager.setEnabled(false);
-      });
     }
+    // --- end disconnect wiring ---
 
     usageRecord.responseStatus = 'success';
 

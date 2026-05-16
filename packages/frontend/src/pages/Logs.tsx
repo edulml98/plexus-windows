@@ -60,6 +60,10 @@ import {
   PlayCircle,
   Circle,
   X,
+  Ban,
+  Timer,
+  CheckCircle,
+  XCircle,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useNavigate } from 'react-router-dom';
@@ -514,7 +518,11 @@ export const Logs = () => {
                     ? 'border-success/30 bg-emerald-500/15 text-success'
                     : status === 'pending'
                       ? 'border-warning/30 bg-yellow-500/15 text-warning'
-                      : 'border-danger/30 bg-red-500/15 text-danger';
+                      : status === 'cancelled'
+                        ? 'border-blue-400/30 bg-blue-500/15 text-blue-400'
+                        : status === 'timeout'
+                          ? 'border-orange-400/30 bg-orange-500/15 text-orange-400'
+                          : 'border-danger/30 bg-red-500/15 text-danger';
 
                 return (
                   <article
@@ -536,10 +544,21 @@ export const Logs = () => {
                       </div>
                       <span
                         className={clsx(
-                          'inline-flex shrink-0 items-center rounded-md border px-2 py-1 text-[11px] font-semibold capitalize',
+                          'inline-flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold capitalize',
                           statusClass
                         )}
                       >
+                        {status === 'success' ? (
+                          <CheckCircle size={10} />
+                        ) : status === 'pending' ? (
+                          <Plane size={10} className="animate-pulse" />
+                        ) : status === 'cancelled' ? (
+                          <Ban size={10} />
+                        ) : status === 'timeout' ? (
+                          <Timer size={10} />
+                        ) : (
+                          <XCircle size={10} />
+                        )}
                         {status}
                       </span>
                     </div>
@@ -1299,16 +1318,24 @@ export const Logs = () => {
                                   ? 'text-success border-success/30 bg-emerald-500/15'
                                   : log.responseStatus === 'pending'
                                     ? 'text-warning border-warning/30 bg-yellow-500/15'
-                                    : 'text-danger border-danger/30 bg-red-500/15'
+                                    : log.responseStatus === 'cancelled'
+                                      ? 'text-blue-400 border-blue-400/30 bg-blue-500/15'
+                                      : log.responseStatus === 'timeout'
+                                        ? 'text-orange-400 border-orange-400/30 bg-orange-500/15'
+                                        : 'text-danger border-danger/30 bg-red-500/15'
                               )}
                               style={{ width: '52px' }}
                             >
                               {log.responseStatus === 'success' ? (
-                                <span style={{ fontWeight: 600 }}>✓</span>
+                                <CheckCircle size={12} />
                               ) : log.responseStatus === 'pending' ? (
                                 <Plane size={12} className="animate-pulse" />
+                              ) : log.responseStatus === 'cancelled' ? (
+                                <Ban size={12} />
+                              ) : log.responseStatus === 'timeout' ? (
+                                <Timer size={12} />
                               ) : (
-                                <span style={{ fontWeight: 600 }}>✗</span>
+                                <XCircle size={12} />
                               )}
                             </div>
                           )}

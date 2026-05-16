@@ -385,7 +385,8 @@ export class OAuthTransformer implements Transformer {
     auth: { authMode: 'oauth'; accountId: string } | { authMode: 'apiKey'; apiKey: string } = {
       authMode: 'oauth',
       accountId: '',
-    }
+    },
+    signal?: AbortSignal
   ): Promise<any> {
     const rawApiKey = await this.resolveApiKey(provider, auth);
     // pi-ai enables Claude Code identity/system injection only for OAuth-shaped tokens.
@@ -548,18 +549,44 @@ export class OAuthTransformer implements Transformer {
       `${this.name}: Executing ${streaming ? 'streaming' : 'complete'} request { model: "${model.id}", provider: "${provider}", authMode: "${auth.authMode}"${auth.authMode === 'oauth' ? `, accountId: "${auth.accountId}"` : ''} }`
     );
 
+    if (signal) {
+      requestOptions.signal = signal;
+    }
+
     if (streaming) {
       try {
         const result = await stream(model, context, requestOptions);
         logger.debug(`${this.name}: OAuth stream result type`, describeStreamResult(result));
         return result;
-      } catch (error) {
+      } catch (error: any) {
+        if (error?.name === 'AbortError' || signal?.aborted) {
+          const isTimeout = signal?.reason?.name === 'TimeoutError';
+          const err = new Error(isTimeout ? 'Upstream timeout' : 'Client disconnected') as any;
+          err.routingContext = {
+            statusCode: isTimeout ? 504 : 499,
+            code: isTimeout ? 'upstream_timeout' : 'client_disconnected',
+          };
+          throw err;
+        }
         logger.error(`${this.name}: OAuth stream request failed`, error);
         throw error;
       }
     }
 
-    return await complete(model, context, requestOptions);
+    try {
+      return await complete(model, context, requestOptions);
+    } catch (error: any) {
+      if (error?.name === 'AbortError' || signal?.aborted) {
+        const isTimeout = signal?.reason?.name === 'TimeoutError';
+        const err = new Error(isTimeout ? 'Upstream timeout' : 'Client disconnected') as any;
+        err.routingContext = {
+          statusCode: isTimeout ? 504 : 499,
+          code: isTimeout ? 'upstream_timeout' : 'client_disconnected',
+        };
+        throw err;
+      }
+      throw error;
+    }
   }
 }
 
