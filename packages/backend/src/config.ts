@@ -425,6 +425,12 @@ export const ProviderConfigSchema = z
     geminiThinkingEnabled: z.boolean().optional(),
     adapter: AdapterConfigSchema,
     timeoutMs: z.number().int().positive().optional(),
+    // Per-provider stall detection overrides (null = use global setting)
+    stallTtfbMs: z.number().int().min(5000).max(120000).nullable().optional(),
+    stallTtfbBytes: z.number().int().min(50).max(10000).nullable().optional(),
+    stallMinBps: z.number().int().min(50).max(5000).nullable().optional(),
+    stallWindowMs: z.number().int().min(3000).max(30000).nullable().optional(),
+    stallGracePeriodMs: z.number().int().min(0).max(120000).nullable().optional(),
   })
   .refine((data) => !!data.api_key || isOAuthProviderConfig(data), {
     message: "'api_key' must be specified for provider",
@@ -682,6 +688,14 @@ const BackgroundExplorationConfigSchema = z.object({
   workerConcurrency: z.number().int().min(1).max(16).default(2),
 });
 
+const StallConfigSchema = z.object({
+  ttfbSeconds: z.number().min(5).max(120).nullable().optional(),
+  ttfbBytes: z.number().int().min(50).max(10000).default(100).optional(),
+  minBytesPerSecond: z.number().int().min(50).max(5000).nullable().optional(),
+  windowSeconds: z.number().int().min(3).max(30).default(10).optional(),
+  gracePeriodSeconds: z.number().int().min(0).max(120).default(30).optional(),
+});
+
 const RawPlexusConfigSchema = z
   .object({
     providers: z.record(z.string(), ProviderConfigSchema),
@@ -694,6 +708,7 @@ const RawPlexusConfigSchema = z
     latencyExplorationRate: z.number().min(0).max(1).default(0.05).optional(),
     e2ePerformanceExplorationRate: z.number().min(0).max(1).default(0.05).optional(),
     timeout: z.object({ defaultSeconds: z.number().min(1).max(3600).default(300) }).optional(),
+    stall: StallConfigSchema.optional(),
     backgroundExploration: BackgroundExplorationConfigSchema.optional(),
     mcp_servers: z.record(z.string(), McpServerConfigSchema).optional(),
     user_quotas: z.record(z.string(), QuotaDefinitionSchema).optional(),
@@ -704,10 +719,18 @@ export type FailoverPolicy = z.infer<typeof FailoverPolicySchema>;
 export type CooldownPolicy = z.infer<typeof CooldownPolicySchema>;
 export type BackgroundExplorationConfig = z.infer<typeof BackgroundExplorationConfigSchema>;
 export type TimeoutConfig = { defaultSeconds: number };
+export type StallConfigType = {
+  ttfbSeconds?: number | null;
+  ttfbBytes?: number;
+  minBytesPerSecond?: number | null;
+  windowSeconds?: number;
+  gracePeriodSeconds?: number;
+};
 export type PlexusConfig = z.infer<typeof RawPlexusConfigSchema> & {
   failover: FailoverPolicy;
   cooldown?: CooldownPolicy;
   timeout?: TimeoutConfig;
+  stall?: StallConfigType;
   quotas: QuotaConfig[];
   mcpServers?: Record<string, McpServerConfig>;
 };

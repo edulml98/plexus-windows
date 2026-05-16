@@ -11,6 +11,7 @@ import type {
   CooldownPolicy,
   QuotaConfig,
   TimeoutConfig,
+  StallConfigType,
 } from '../config';
 
 import { QuotaScheduler } from './quota/quota-scheduler';
@@ -377,6 +378,7 @@ export class ConfigService {
     const cooldown = await this.repo.getCooldownPolicy();
     const backgroundExploration = await this.repo.getBackgroundExplorationConfig();
     const timeout = await this.repo.getTimeoutConfig();
+    const stall = await this.repo.getStallConfig();
     const allSettings = await this.repo.getAllSettings();
 
     // Spread all flat settings (non-dotted keys) onto the cache so new settings
@@ -396,6 +398,7 @@ export class ConfigService {
       failover,
       cooldown,
       timeout,
+      stall: Object.values(stall).some((v) => v !== null && v !== undefined) ? stall : undefined,
       backgroundExploration,
       quotas,
       mcpServers: Object.keys(mcpServers).length > 0 ? mcpServers : undefined,

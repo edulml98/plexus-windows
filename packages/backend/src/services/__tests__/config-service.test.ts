@@ -35,6 +35,15 @@ function createMockRepo() {
     getCooldownPolicy: vi.fn(() => Promise.resolve({ enabled: false })),
     getBackgroundExplorationConfig: vi.fn(() => Promise.resolve({ enabled: false })),
     getTimeoutConfig: vi.fn(() => Promise.resolve({ defaultSeconds: 300 })),
+    getStallConfig: vi.fn(() =>
+      Promise.resolve({
+        ttfbSeconds: null,
+        ttfbBytes: 100,
+        minBytesPerSecond: null,
+        windowSeconds: 10,
+        gracePeriodSeconds: 30,
+      })
+    ),
     getAllSettings: vi.fn(() => Promise.resolve({})),
   };
 }

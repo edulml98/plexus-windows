@@ -38,6 +38,32 @@ export function ProviderAdvancedEditor({
   const [isOpen, setIsOpen] = useState(false);
   const [isHeadersOpen, setIsHeadersOpen] = useState(false);
   const [isExtraBodyOpen, setIsExtraBodyOpen] = useState(false);
+  const [isStallOpen, setIsStallOpen] = useState(false);
+
+  // Draft state for stall number inputs — allows free typing without
+  // range-checking on every keystroke. Values are committed to editingProvider
+  // on blur, where we validate the final value.
+  const [stallTtfbDraft, setStallTtfbDraft] = useState<string>(
+    editingProvider.stallTtfbMs != null
+      ? String(Math.round(editingProvider.stallTtfbMs / 1000))
+      : ''
+  );
+  const [stallTtfbBytesDraft, setStallTtfbBytesDraft] = useState<string>(
+    editingProvider.stallTtfbBytes != null ? String(editingProvider.stallTtfbBytes) : ''
+  );
+  const [stallMinBpsDraft, setStallMinBpsDraft] = useState<string>(
+    editingProvider.stallMinBps != null ? String(editingProvider.stallMinBps) : ''
+  );
+  const [stallWindowDraft, setStallWindowDraft] = useState<string>(
+    editingProvider.stallWindowMs != null
+      ? String(Math.round(editingProvider.stallWindowMs / 1000))
+      : ''
+  );
+  const [stallGraceDraft, setStallGraceDraft] = useState<string>(
+    editingProvider.stallGracePeriodMs != null
+      ? String(Math.round(editingProvider.stallGracePeriodMs / 1000))
+      : ''
+  );
 
   return (
     <div className="border border-border-glass rounded-sm overflow-hidden">
@@ -191,6 +217,222 @@ export function ProviderAdvancedEditor({
                 }}
               />
             </div>
+          </div>
+
+          {/* Stall Detection Overrides */}
+          <div className="border border-border-glass rounded-md overflow-hidden">
+            <div
+              className="p-2 px-3 flex items-center gap-2 cursor-pointer bg-bg-hover hover:bg-bg-glass"
+              onClick={() => setIsStallOpen(!isStallOpen)}
+            >
+              {isStallOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+              <label
+                className="font-body text-[13px] font-medium text-text-secondary"
+                style={{ marginBottom: 0, flex: 1 }}
+              >
+                Stall Detection Overrides
+              </label>
+              {(editingProvider.stallTtfbMs != null ||
+                editingProvider.stallTtfbBytes != null ||
+                editingProvider.stallMinBps != null ||
+                editingProvider.stallWindowMs != null ||
+                editingProvider.stallGracePeriodMs != null) && (
+                <Badge status="neutral" style={{ fontSize: '10px', padding: '2px 8px' }}>
+                  Custom
+                </Badge>
+              )}
+            </div>
+            {isStallOpen && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  padding: '8px',
+                  borderTop: '1px solid var(--color-border-glass)',
+                  background: 'var(--color-bg-deep)',
+                }}
+              >
+                <div
+                  className="font-body text-[11px] text-text-secondary"
+                  style={{ lineHeight: 1.35, marginBottom: '2px' }}
+                >
+                  Override the global stall detection settings for this provider. Leave empty to use
+                  the global setting for each field.
+                </div>
+                {/* TTFB Timeout */}
+                <div>
+                  <label className="font-body text-[11px] font-medium text-text-secondary block mb-1">
+                    TTFB Timeout (seconds)
+                  </label>
+                  <div
+                    className="font-body text-[10px] text-text-muted"
+                    style={{ lineHeight: 1.3, marginBottom: '3px' }}
+                  >
+                    5–120 seconds. Leave empty for global default.
+                  </div>
+                  <input
+                    className="w-full max-w-[200px] py-2 pl-3 pr-7 font-body text-sm text-text bg-bg-glass border border-border-glass rounded-sm outline-none focus:border-primary"
+                    type="number"
+                    step="1"
+                    placeholder="Global default"
+                    value={stallTtfbDraft}
+                    onChange={(e) => setStallTtfbDraft(e.target.value)}
+                    onBlur={() => {
+                      const num = Number(stallTtfbDraft);
+                      if (stallTtfbDraft === '') {
+                        setEditingProvider({ ...editingProvider, stallTtfbMs: undefined });
+                      } else if (Number.isFinite(num) && num >= 5 && num <= 120) {
+                        setEditingProvider({ ...editingProvider, stallTtfbMs: num * 1000 });
+                      } else {
+                        // Revert to current value
+                        setStallTtfbDraft(
+                          editingProvider.stallTtfbMs != null
+                            ? String(Math.round(editingProvider.stallTtfbMs / 1000))
+                            : ''
+                        );
+                      }
+                    }}
+                  />
+                </div>
+                {/* TTFB Byte Threshold */}
+                <div>
+                  <label className="font-body text-[11px] font-medium text-text-secondary block mb-1">
+                    TTFB Byte Threshold
+                  </label>
+                  <div
+                    className="font-body text-[10px] text-text-muted"
+                    style={{ lineHeight: 1.3, marginBottom: '3px' }}
+                  >
+                    50–10,000 bytes. Leave empty for global default.
+                  </div>
+                  <input
+                    className="w-full max-w-[200px] py-2 pl-3 pr-7 font-body text-sm text-text bg-bg-glass border border-border-glass rounded-sm outline-none focus:border-primary"
+                    type="number"
+                    step="1"
+                    placeholder="Global default"
+                    value={stallTtfbBytesDraft}
+                    onChange={(e) => setStallTtfbBytesDraft(e.target.value)}
+                    onBlur={() => {
+                      const num = Number(stallTtfbBytesDraft);
+                      if (stallTtfbBytesDraft === '') {
+                        setEditingProvider({ ...editingProvider, stallTtfbBytes: undefined });
+                      } else if (Number.isFinite(num) && num >= 50 && num <= 10000) {
+                        setEditingProvider({ ...editingProvider, stallTtfbBytes: num });
+                      } else {
+                        setStallTtfbBytesDraft(
+                          editingProvider.stallTtfbBytes != null
+                            ? String(editingProvider.stallTtfbBytes)
+                            : ''
+                        );
+                      }
+                    }}
+                  />
+                </div>
+                {/* Min Bytes/Sec */}
+                <div>
+                  <label className="font-body text-[11px] font-medium text-text-secondary block mb-1">
+                    Min Bytes Per Second
+                  </label>
+                  <div
+                    className="font-body text-[10px] text-text-muted"
+                    style={{ lineHeight: 1.3, marginBottom: '3px' }}
+                  >
+                    50–5,000 B/s. Leave empty for global default.
+                  </div>
+                  <input
+                    className="w-full max-w-[200px] py-2 pl-3 pr-7 font-body text-sm text-text bg-bg-glass border border-border-glass rounded-sm outline-none focus:border-primary"
+                    type="number"
+                    step="1"
+                    placeholder="Global default"
+                    value={stallMinBpsDraft}
+                    onChange={(e) => setStallMinBpsDraft(e.target.value)}
+                    onBlur={() => {
+                      const num = Number(stallMinBpsDraft);
+                      if (stallMinBpsDraft === '') {
+                        setEditingProvider({ ...editingProvider, stallMinBps: undefined });
+                      } else if (Number.isFinite(num) && num >= 50 && num <= 5000) {
+                        setEditingProvider({ ...editingProvider, stallMinBps: num });
+                      } else {
+                        setStallMinBpsDraft(
+                          editingProvider.stallMinBps != null
+                            ? String(editingProvider.stallMinBps)
+                            : ''
+                        );
+                      }
+                    }}
+                  />
+                </div>
+                {/* Stall Window */}
+                <div>
+                  <label className="font-body text-[11px] font-medium text-text-secondary block mb-1">
+                    Stall Window (seconds)
+                  </label>
+                  <div
+                    className="font-body text-[10px] text-text-muted"
+                    style={{ lineHeight: 1.3, marginBottom: '3px' }}
+                  >
+                    3–30 seconds. Leave empty for global default.
+                  </div>
+                  <input
+                    className="w-full max-w-[200px] py-2 pl-3 pr-7 font-body text-sm text-text bg-bg-glass border border-border-glass rounded-sm outline-none focus:border-primary"
+                    type="number"
+                    step="1"
+                    placeholder="Global default"
+                    value={stallWindowDraft}
+                    onChange={(e) => setStallWindowDraft(e.target.value)}
+                    onBlur={() => {
+                      const num = Number(stallWindowDraft);
+                      if (stallWindowDraft === '') {
+                        setEditingProvider({ ...editingProvider, stallWindowMs: undefined });
+                      } else if (Number.isFinite(num) && num >= 3 && num <= 30) {
+                        setEditingProvider({ ...editingProvider, stallWindowMs: num * 1000 });
+                      } else {
+                        setStallWindowDraft(
+                          editingProvider.stallWindowMs != null
+                            ? String(Math.round(editingProvider.stallWindowMs / 1000))
+                            : ''
+                        );
+                      }
+                    }}
+                  />
+                </div>
+                {/* Grace Period */}
+                <div>
+                  <label className="font-body text-[11px] font-medium text-text-secondary block mb-1">
+                    Stall Grace Period (seconds)
+                  </label>
+                  <div
+                    className="font-body text-[10px] text-text-muted"
+                    style={{ lineHeight: 1.3, marginBottom: '3px' }}
+                  >
+                    0–120 seconds. Leave empty for global default.
+                  </div>
+                  <input
+                    className="w-full max-w-[200px] py-2 pl-3 pr-7 font-body text-sm text-text bg-bg-glass border border-border-glass rounded-sm outline-none focus:border-primary"
+                    type="number"
+                    step="1"
+                    placeholder="Global default"
+                    value={stallGraceDraft}
+                    onChange={(e) => setStallGraceDraft(e.target.value)}
+                    onBlur={() => {
+                      const num = Number(stallGraceDraft);
+                      if (stallGraceDraft === '') {
+                        setEditingProvider({ ...editingProvider, stallGracePeriodMs: undefined });
+                      } else if (Number.isFinite(num) && num >= 0 && num <= 120) {
+                        setEditingProvider({ ...editingProvider, stallGracePeriodMs: num * 1000 });
+                      } else {
+                        setStallGraceDraft(
+                          editingProvider.stallGracePeriodMs != null
+                            ? String(Math.round(editingProvider.stallGracePeriodMs / 1000))
+                            : ''
+                        );
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Custom Headers */}

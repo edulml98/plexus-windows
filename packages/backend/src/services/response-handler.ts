@@ -11,6 +11,7 @@ import { Readable } from 'stream';
 import { DebugManager } from './debug-manager';
 import { estimateKwhUsed } from './inference-energy';
 import { applyProviderReportedCost } from '../utils/provider-cost';
+import { StallInspector, type StallConfig } from './inspectors/stall-inspector';
 import { DEFAULT_GPU_PARAMS, DEFAULT_MODEL } from '@plexus/shared';
 import type { GpuParams } from '@plexus/shared';
 import { QuotaEnforcer } from '../services/quota/quota-enforcer';
@@ -37,7 +38,17 @@ export async function handleResponse(
   originalRequest?: any,
   quotaEnforcer?: QuotaEnforcer,
   keyName?: string,
-  abortController?: AbortController
+  abortController?: AbortController,
+  stallDetectionResult?: {
+    stallInspector: StallInspector;
+    addStallConfig: (providerOverrides: {
+      stallTtfbMs?: number | null;
+      stallTtfbBytes?: number | null;
+      stallMinBps?: number | null;
+      stallWindowMs?: number | null;
+      stallGracePeriodMs?: number | null;
+    }) => void;
+  } | null
 ) {
   // Populate usage record with metadata from the dispatcher's selection
   usageRecord.selectedModelName = unifiedResponse.plexus?.model || unifiedResponse.model; // Fallback to unifiedResponse.model if plexus.model is missing
@@ -182,9 +193,16 @@ export async function handleResponse(
     // Convert Web Stream to Node Stream for piping
     const nodeStream = Readable.fromWeb(finalClientStream as any);
 
-    // Pipeline: Source -> Usage -> Client
-    // rawLogInspector is already tapped via the TransformStream above
-    const pipeline = nodeStream.pipe(usageInspector);
+    // Insert StallInspector into the pipeline if stall detection is active
+    const stallInspector = stallDetectionResult?.stallInspector ?? null;
+    if (stallInspector) {
+      stallInspector.setRequestId(usageRecord.requestId!);
+    }
+
+    // Pipeline: Source -> StallInspector (if active) -> Usage -> Client
+    const pipeline = stallInspector
+      ? nodeStream.pipe(stallInspector).pipe(usageInspector)
+      : nodeStream.pipe(usageInspector);
 
     // =============================================================================
     // CLIENT DISCONNECT DETECTION & UPSTREAM CANCELLATION
@@ -287,16 +305,28 @@ export async function handleResponse(
       // it was a timeout.
       const isTimeout =
         source.includes('timeout') || abortController?.signal?.reason?.name === 'TimeoutError';
+      // Stall detection uses DOMException('TimeoutError') as the abort reason,
+      // but we check the reason message for 'stalled' to distinguish from absolute timeout.
+      const isStall =
+        source === 'stall' ||
+        (abortController?.signal?.reason?.name === 'TimeoutError' &&
+          abortController?.signal?.reason?.message?.includes('stalled'));
       logger.debug(
-        `${isTimeout ? 'Upstream timeout' : 'Client disconnected'} for request ${usageRecord.requestId} (detected via ${source}), aborting upstream`
+        `${isStall ? 'Stream stalled' : isTimeout ? 'Upstream timeout' : 'Client disconnected'} for request ${usageRecord.requestId} (detected via ${source}), aborting upstream`
       );
-      const timeoutErr = isTimeout
-        ? new DOMException('The operation timed out.', 'TimeoutError')
-        : undefined;
+      const timeoutErr = isStall
+        ? new DOMException(
+            abortController?.signal?.reason?.message || 'Stream stalled',
+            'TimeoutError'
+          )
+        : isTimeout
+          ? new DOMException('The operation timed out.', 'TimeoutError')
+          : undefined;
       abortController?.abort(timeoutErr);
       // Set responseStatus before destroy so UsageInspector._destroy() sees it.
-      // _destroy respects a pre-set 'timeout' status and won't overwrite it.
-      if (isTimeout) {
+      if (isStall) {
+        usageRecord.responseStatus = 'stall';
+      } else if (isTimeout) {
         usageRecord.responseStatus = 'timeout';
       }
       // Destroy without passing the error — calling .destroy(err) causes Node.js to
