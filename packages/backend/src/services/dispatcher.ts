@@ -240,7 +240,11 @@ export class Dispatcher {
     );
   }
 
-  async dispatch(request: UnifiedChatRequest, signal?: AbortSignal): Promise<UnifiedChatResponse> {
+  async dispatch(
+    request: UnifiedChatRequest,
+    signal?: AbortSignal,
+    addTimeoutSource?: (timeoutMs: number) => void
+  ): Promise<UnifiedChatResponse> {
     const config = getConfig();
     const failover = config.failover;
     const failoverEnabled = failover?.enabled !== false;
@@ -455,6 +459,13 @@ export class Dispatcher {
         // 4. Execute Request
         const url = this.buildRequestUrl(route, transformer, requestWithTargetModel, targetApiType);
         const headers = this.setupHeaders(route, targetApiType, requestWithTargetModel);
+
+        // Wire per-provider timeout override if set. This fires sooner than the
+        // global timeout and aborts the upstream fetch + the route's AbortController
+        // (via addTimeoutSource) so response-handler.ts stream monitoring detects it.
+        if (route.config.timeoutMs && addTimeoutSource) {
+          addTimeoutSource(route.config.timeoutMs);
+        }
 
         const incomingApi = currentRequest.incomingApiType || 'unknown';
 

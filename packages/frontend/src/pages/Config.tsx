@@ -83,6 +83,14 @@ interface BackgroundExplorationConfig {
   workerConcurrency: number;
 }
 
+interface TimeoutConfig {
+  defaultSeconds: number;
+}
+
+const DEFAULT_TIMEOUT_CONFIG: TimeoutConfig = {
+  defaultSeconds: 300,
+};
+
 const DEFAULT_BACKGROUND_EXPLORATION: BackgroundExplorationConfig = {
   enabled: false,
   stalenessThresholdSeconds: 600,
@@ -141,6 +149,35 @@ export const Config = () => {
     }
     return { valid: true, value: num };
   };
+
+  // Timeout settings state
+  const [timeoutConfig, setTimeoutConfig] = useState<TimeoutConfig>(DEFAULT_TIMEOUT_CONFIG);
+  const [timeoutLoaded, setTimeoutLoaded] = useState(false);
+  const [timeoutSaving, setTimeoutSaving] = useState(false);
+  const [timeoutDefaultInput, setTimeoutDefaultInput] = useState('');
+
+  // Validate timeout input
+  const validateTimeoutInput = (
+    raw: string
+  ): { valid: boolean; value?: number; error?: string } => {
+    if (raw === '') {
+      return { valid: false, error: 'Required' };
+    }
+    const num = Number(raw);
+    if (isNaN(num) || !isFinite(num) || !Number.isInteger(num)) {
+      return { valid: false, error: 'Must be an integer' };
+    }
+    if (num < 1) {
+      return { valid: false, error: 'Must be at least 1' };
+    }
+    if (num > 3600) {
+      return { valid: false, error: 'Must be at most 3600' };
+    }
+    return { valid: true, value: num };
+  };
+
+  const timeoutDefaultValidation = validateTimeoutInput(timeoutDefaultInput);
+  const isTimeoutValid = timeoutLoaded && timeoutDefaultValidation.valid;
 
   const initialValidation = validateCooldownInput(cooldownInitialInput);
   const maxValidation = validateCooldownInput(cooldownMaxInput);
@@ -276,6 +313,18 @@ export const Config = () => {
     }
   }, [toast]);
 
+  const loadTimeoutConfig = useCallback(async () => {
+    try {
+      const cfg = await api.getTimeoutConfig();
+      setTimeoutConfig(cfg);
+      setTimeoutDefaultInput(String(cfg.defaultSeconds));
+      setTimeoutLoaded(true);
+    } catch (e) {
+      console.error('Failed to load timeout config:', e);
+      toast.error('Failed to load timeout settings');
+    }
+  }, [toast]);
+
   const handleSaveFailover = async () => {
     setFailoverSaving(true);
     try {
@@ -327,6 +376,24 @@ export const Config = () => {
       toast.error((e as Error).message, 'Failed to save cooldown settings');
     } finally {
       setCooldownSaving(false);
+    }
+  };
+
+  const handleSaveTimeout = async () => {
+    if (!timeoutDefaultValidation.valid) return;
+    setTimeoutSaving(true);
+    try {
+      const updated = await api.patchTimeoutConfig({
+        defaultSeconds: timeoutDefaultValidation.value!,
+      });
+
+      setTimeoutConfig(updated);
+      setTimeoutDefaultInput(String(updated.defaultSeconds));
+      toast.success('Timeout settings saved');
+    } catch (e) {
+      toast.error((e as Error).message, 'Failed to save timeout settings');
+    } finally {
+      setTimeoutSaving(false);
     }
   };
 
@@ -404,6 +471,7 @@ export const Config = () => {
     loadConfig();
     loadFailoverPolicy();
     loadCooldownPolicy();
+    loadTimeoutConfig();
     loadExplorationRates();
     loadBackgroundExploration();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -830,6 +898,80 @@ export const Config = () => {
                     : cooldownLoaded
                       ? formatMinutesToMinSec(cooldownPolicy.maxMinutes)
                       : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+        </Disclosure>
+
+        {/* ─── Timeout Settings ───────────────────────────────────── */}
+        <Disclosure
+          title="Timeout Settings"
+          defaultOpen={false}
+          extra={
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveTimeout}
+              isLoading={timeoutSaving}
+              disabled={!isTimeoutValid}
+              leftIcon={<Save size={14} />}
+            >
+              Save
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-5">
+            {/* Description */}
+            <div className="flex items-start gap-2">
+              <Timer size={16} className="text-primary mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-text">Upstream Request Timeout</p>
+                <p className="text-xs text-text-muted">
+                  The maximum time Plexus waits for an upstream provider to respond before aborting
+                  the request. Can be overridden per-provider in the provider's advanced settings.
+                </p>
+              </div>
+            </div>
+
+            {/* Default Seconds */}
+            <div>
+              <label
+                htmlFor="timeoutDefaultSeconds"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                Default Timeout (seconds)
+              </label>
+              <p className="text-xs text-text-muted mb-2">
+                The global default for all upstream requests. Must be between 1 and 3600 seconds.
+                When a provider-specific timeout is set, it overrides this value.
+              </p>
+              <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-1">
+                  <input
+                    id="timeoutDefaultSeconds"
+                    type="number"
+                    min={1}
+                    max={3600}
+                    step={1}
+                    value={timeoutDefaultInput}
+                    onChange={(e) => setTimeoutDefaultInput(e.target.value)}
+                    className="w-full max-w-[200px] rounded-md border border-border bg-bg-glass px-3 py-2 text-sm text-text font-mono placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                  />
+                  {!timeoutDefaultValidation.valid && timeoutDefaultInput !== '' && (
+                    <span className="text-xs text-warning">{timeoutDefaultValidation.error}</span>
+                  )}
+                </div>
+                <span className="text-xs text-text-muted tabular-nums min-w-[60px]">
+                  {timeoutDefaultValidation.valid && timeoutDefaultValidation.value !== undefined
+                    ? timeoutDefaultValidation.value >= 60
+                      ? `${Math.floor(timeoutDefaultValidation.value / 60)}m ${timeoutDefaultValidation.value % 60}s`
+                      : `${timeoutDefaultValidation.value}s`
+                    : timeoutLoaded
+                      ? timeoutConfig.defaultSeconds >= 60
+                        ? `${Math.floor(timeoutConfig.defaultSeconds / 60)}m ${timeoutConfig.defaultSeconds % 60}s`
+                        : `${timeoutConfig.defaultSeconds}s`
+                      : '\u2014'}
                 </span>
               </div>
             </div>

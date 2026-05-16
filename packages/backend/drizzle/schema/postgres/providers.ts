@@ -47,6 +47,7 @@ export const providers = pgTable(
     gpuFlopsTflop: real('gpu_flops_tflop'), // FLOPS in TFLOP
     gpuPowerDrawWatts: integer('gpu_power_draw_watts'), // Power draw in watts
     adapter: jsonb('adapter'), // string[] — provider-level adapter names
+    timeoutMs: integer('timeout_ms'), // Per-provider upstream request timeout in ms (NULL = use global default)
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
   },

@@ -424,6 +424,7 @@ export const ProviderConfigSchema = z
     gpu_power_draw_watts: z.number().positive().optional(),
     geminiThinkingEnabled: z.boolean().optional(),
     adapter: AdapterConfigSchema,
+    timeoutMs: z.number().int().positive().optional(),
   })
   .refine((data) => !!data.api_key || isOAuthProviderConfig(data), {
     message: "'api_key' must be specified for provider",
@@ -692,6 +693,7 @@ const RawPlexusConfigSchema = z
     performanceExplorationRate: z.number().min(0).max(1).default(0.05).optional(),
     latencyExplorationRate: z.number().min(0).max(1).default(0.05).optional(),
     e2ePerformanceExplorationRate: z.number().min(0).max(1).default(0.05).optional(),
+    timeout: z.object({ defaultSeconds: z.number().min(1).max(3600).default(300) }).optional(),
     backgroundExploration: BackgroundExplorationConfigSchema.optional(),
     mcp_servers: z.record(z.string(), McpServerConfigSchema).optional(),
     user_quotas: z.record(z.string(), QuotaDefinitionSchema).optional(),
@@ -701,9 +703,11 @@ const RawPlexusConfigSchema = z
 export type FailoverPolicy = z.infer<typeof FailoverPolicySchema>;
 export type CooldownPolicy = z.infer<typeof CooldownPolicySchema>;
 export type BackgroundExplorationConfig = z.infer<typeof BackgroundExplorationConfigSchema>;
+export type TimeoutConfig = { defaultSeconds: number };
 export type PlexusConfig = z.infer<typeof RawPlexusConfigSchema> & {
   failover: FailoverPolicy;
   cooldown?: CooldownPolicy;
+  timeout?: TimeoutConfig;
   quotas: QuotaConfig[];
   mcpServers?: Record<string, McpServerConfig>;
 };

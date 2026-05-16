@@ -281,21 +281,43 @@ export async function handleResponse(
     const onDisconnect = (source: string) => {
       if (disconnected) return;
       disconnected = true;
+      // Determine if this is a timeout by checking the source string OR the abort
+      // reason. When wireUpstreamTimeout fires, it calls abortController.abort(TimeoutError),
+      // so the signal listener fires with source='signal.abort' but the reason tells us
+      // it was a timeout.
+      const isTimeout =
+        source.includes('timeout') || abortController?.signal?.reason?.name === 'TimeoutError';
       logger.debug(
-        `Client disconnected for request ${usageRecord.requestId} (detected via ${source}), aborting upstream`
+        `${isTimeout ? 'Upstream timeout' : 'Client disconnected'} for request ${usageRecord.requestId} (detected via ${source}), aborting upstream`
       );
-      abortController?.abort();
+      const timeoutErr = isTimeout
+        ? new DOMException('The operation timed out.', 'TimeoutError')
+        : undefined;
+      abortController?.abort(timeoutErr);
+      // Set responseStatus before destroy so UsageInspector._destroy() sees it.
+      // _destroy respects a pre-set 'timeout' status and won't overwrite it.
+      if (isTimeout) {
+        usageRecord.responseStatus = 'timeout';
+      }
+      // Destroy without passing the error — calling .destroy(err) causes Node.js to
+      // emit 'error' on the stream, which becomes an uncaught exception since
+      // these streams don't have error listeners. The cancellation still works:
+      // nodeStream.destroy() triggers Readable.fromWeb → cancel() on the upstream
+      // fetch body, and _destroy reads the status we already set on usageRecord.
       nodeStream.destroy(); // cancels the upstream fetch via Readable.fromWeb → cancel()
       pipeline.destroy();
     };
 
     if (abortController) {
-      // Wire the abort signal so that timeout aborts (e.g. AbortSignal.timeout() or
-      // AbortSignal.any([clientSignal, AbortSignal.timeout(ms)])) also trigger
+      // Wire the abort signal so that timeout aborts also trigger
       // nodeStream.destroy(). abortController.abort() alone does NOT stop an
       // already-in-progress Readable.fromWeb() read loop — the same root cause as
       // the client-disconnect bug. This listener ensures any abort reason goes through
-      // the correct cancellation path. See test-timeout-signal-listener.ts.
+      // the correct cancellation path. The timeout is wired via wireUpstreamTimeout()
+      // in the route handler, which calls abortController.abort() when the timeout
+      // fires so this listener detects it. The pipeline.on('error') handler also
+      // catches TimeoutErrors that propagate through the stream as a belt-and-suspenders.
+      // See test-timeout-signal-listener.ts and utils/timeout.ts.
       abortController.signal.addEventListener('abort', () => onDisconnect('signal.abort'), {
         once: true,
       });
@@ -326,8 +348,18 @@ export async function handleResponse(
       // Belt-and-suspenders: catch any write errors that do surface (e.g. if Bun
       // ever fixes EPIPE propagation, or on non-Bun runtimes).
       const code = err?.code;
-      if (code === 'EPIPE' || code === 'ECONNRESET' || code === 'ERR_STREAM_DESTROYED') {
-        onDisconnect('pipeline.error.' + code);
+      const isTimeout =
+        err?.name === 'TimeoutError' ||
+        err?.name === 'AbortError' ||
+        err?.message?.includes('timeout') ||
+        err?.message?.includes('aborted');
+      if (
+        code === 'EPIPE' ||
+        code === 'ECONNRESET' ||
+        code === 'ERR_STREAM_DESTROYED' ||
+        isTimeout
+      ) {
+        onDisconnect(isTimeout ? 'pipeline.error.timeout' : 'pipeline.error.' + code);
       }
       cleanupDisconnectWiring();
       // Restore debug mode on error

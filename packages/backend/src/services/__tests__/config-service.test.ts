@@ -34,6 +34,7 @@ function createMockRepo() {
     getFailoverPolicy: vi.fn(() => Promise.resolve({ enabled: false })),
     getCooldownPolicy: vi.fn(() => Promise.resolve({ enabled: false })),
     getBackgroundExplorationConfig: vi.fn(() => Promise.resolve({ enabled: false })),
+    getTimeoutConfig: vi.fn(() => Promise.resolve({ defaultSeconds: 300 })),
     getAllSettings: vi.fn(() => Promise.resolve({})),
   };
 }

@@ -167,7 +167,11 @@ export function formatTimeLabel(timestamp: string): string {
 export function formatDateTimeLabel(timestamp: string): string {
   const date = parseTimestamp(timestamp);
   if (date) {
-    const dateStr = date.toLocaleDateString([], { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const dateStr = date.toLocaleDateString([], {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
     const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     return `${dateStr} ${timeStr}`;
   }

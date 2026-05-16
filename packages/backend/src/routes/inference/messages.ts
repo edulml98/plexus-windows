@@ -10,6 +10,7 @@ import { DebugManager } from '../../services/debug-manager';
 import { QuotaEnforcer } from '../../services/quota/quota-enforcer';
 import { checkQuotaMiddleware } from '../../services/quota/quota-middleware';
 import { attachKeyAccessPolicy } from '../../utils/auth';
+import { wireUpstreamTimeout } from '../../utils/timeout';
 
 export async function registerMessagesRoute(
   fastify: FastifyInstance,
@@ -85,7 +86,12 @@ export async function registerMessagesRoute(
       }
 
       const abortController = new AbortController();
-      const unifiedResponse = await dispatcher.dispatch(unifiedRequest, abortController.signal);
+      const { signal: dispatchSignal, addTimeoutSource } = wireUpstreamTimeout(abortController);
+      const unifiedResponse = await dispatcher.dispatch(
+        unifiedRequest,
+        dispatchSignal,
+        addTimeoutSource
+      );
 
       // Emit 'updated' event with routing decision details
       usageStorage.emitUpdatedAsync({
@@ -122,8 +128,13 @@ export async function registerMessagesRoute(
 
       return result;
     } catch (e: any) {
-      if (e?.routingContext?.code === 'client_disconnected' || e?.routingContext?.code === 'upstream_timeout') {
-        logger.info(`Request ${requestId}: ${e.message}, usage recorded as ${e?.routingContext?.code === 'upstream_timeout' ? 'timeout' : 'cancelled'}`);
+      if (
+        e?.routingContext?.code === 'client_disconnected' ||
+        e?.routingContext?.code === 'upstream_timeout'
+      ) {
+        logger.info(
+          `Request ${requestId}: ${e.message}, usage recorded as ${e?.routingContext?.code === 'upstream_timeout' ? 'timeout' : 'cancelled'}`
+        );
         return;
       }
       usageRecord.responseStatus = 'error';

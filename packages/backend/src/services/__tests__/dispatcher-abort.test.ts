@@ -47,6 +47,7 @@ describe('Dispatcher — AbortSignal / cancellation', () => {
       controller.signal
     );
 
+    // When config is not initialized (test env), the signal is passed through as-is
     expect(mockFetch).toHaveBeenCalledWith(
       'https://example.com/v1/test',
       expect.objectContaining({ signal: controller.signal })
