@@ -20,6 +20,7 @@ import type {
   CooldownPolicy,
   BackgroundExplorationConfig,
   TimeoutConfig,
+  StallConfigType,
   MetadataOverrides,
 } from '../config';
 import { resolveGpuParams } from '@plexus/shared';
@@ -313,6 +314,12 @@ export class ConfigRepository {
           ? toJson(Array.isArray(config.adapter) ? config.adapter : [config.adapter])
           : null,
       timeoutMs: config.timeoutMs ?? null,
+      // Per-provider stall detection overrides
+      stallTtfbMs: config.stallTtfbMs ?? null,
+      stallTtfbBytes: config.stallTtfbBytes ?? null,
+      stallMinBps: config.stallMinBps ?? null,
+      stallWindowMs: config.stallWindowMs ?? null,
+      stallGracePeriodMs: config.stallGracePeriodMs ?? null,
       updatedAt: timestamp,
     };
 
@@ -533,6 +540,11 @@ export class ConfigRepository {
         };
       })(),
       ...(row.timeoutMs != null ? { timeoutMs: row.timeoutMs } : {}),
+      ...(row.stallTtfbMs != null ? { stallTtfbMs: row.stallTtfbMs } : {}),
+      ...(row.stallTtfbBytes != null ? { stallTtfbBytes: row.stallTtfbBytes } : {}),
+      ...(row.stallMinBps != null ? { stallMinBps: row.stallMinBps } : {}),
+      ...(row.stallWindowMs != null ? { stallWindowMs: row.stallWindowMs } : {}),
+      ...(row.stallGracePeriodMs != null ? { stallGracePeriodMs: row.stallGracePeriodMs } : {}),
     };
 
     return result as ProviderConfig;
@@ -1232,6 +1244,15 @@ export class ConfigRepository {
   async getTimeoutConfig(): Promise<TimeoutConfig> {
     const defaultSeconds = await this.getSetting<number>('timeout.defaultSeconds', 300);
     return { defaultSeconds };
+  }
+
+  async getStallConfig(): Promise<import('../config').StallConfigType> {
+    const ttfbSeconds = await this.getSetting<number | null>('stall.ttfbSeconds', null);
+    const ttfbBytes = await this.getSetting<number>('stall.ttfbBytes', 100);
+    const minBytesPerSecond = await this.getSetting<number | null>('stall.minBytesPerSecond', null);
+    const windowSeconds = await this.getSetting<number>('stall.windowSeconds', 10);
+    const gracePeriodSeconds = await this.getSetting<number>('stall.gracePeriodSeconds', 30);
+    return { ttfbSeconds, ttfbBytes, minBytesPerSecond, windowSeconds, gracePeriodSeconds };
   }
 
   // ─── OAuth Credentials ──────────────────────────────────────────

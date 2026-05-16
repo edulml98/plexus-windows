@@ -620,6 +620,88 @@ export async function registerConfigRoutes(
     }
   });
 
+  // ─── Stall Config ──────────────────────────────────────────────────
+
+  fastify.get('/v0/management/config/stall', async (_request, reply) => {
+    try {
+      const stall = await configService.getRepository().getStallConfig();
+      return reply.send(stall);
+    } catch (e: any) {
+      logger.error('Failed to read stall config', e);
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  fastify.patch('/v0/management/config/stall', async (request, reply) => {
+    const body = request.body as Record<string, unknown> | null;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return reply.code(400).send({ error: 'Object body is required' });
+    }
+
+    try {
+      if (body.ttfbSeconds !== undefined) {
+        if (body.ttfbSeconds === null) {
+          await configService.setSetting('stall.ttfbSeconds', null);
+        } else {
+          const val = Number(body.ttfbSeconds);
+          if (!Number.isFinite(val) || val < 5 || val > 120) {
+            return reply
+              .code(400)
+              .send({ error: 'ttfbSeconds must be null or a number between 5 and 120' });
+          }
+          await configService.setSetting('stall.ttfbSeconds', val);
+        }
+      }
+      if (body.ttfbBytes !== undefined) {
+        const val = Number(body.ttfbBytes);
+        if (!Number.isFinite(val) || !Number.isInteger(val) || val < 50 || val > 10000) {
+          return reply
+            .code(400)
+            .send({ error: 'ttfbBytes must be an integer between 50 and 10000' });
+        }
+        await configService.setSetting('stall.ttfbBytes', val);
+      }
+      if (body.minBytesPerSecond !== undefined) {
+        if (body.minBytesPerSecond === null) {
+          await configService.setSetting('stall.minBytesPerSecond', null);
+        } else {
+          const val = Number(body.minBytesPerSecond);
+          if (!Number.isFinite(val) || !Number.isInteger(val) || val < 50 || val > 5000) {
+            return reply
+              .code(400)
+              .send({ error: 'minBytesPerSecond must be null or an integer between 50 and 5000' });
+          }
+          await configService.setSetting('stall.minBytesPerSecond', val);
+        }
+      }
+      if (body.windowSeconds !== undefined) {
+        const val = Number(body.windowSeconds);
+        if (!Number.isFinite(val) || !Number.isInteger(val) || val < 3 || val > 30) {
+          return reply
+            .code(400)
+            .send({ error: 'windowSeconds must be an integer between 3 and 30' });
+        }
+        await configService.setSetting('stall.windowSeconds', val);
+      }
+      if (body.gracePeriodSeconds !== undefined) {
+        const val = Number(body.gracePeriodSeconds);
+        if (!Number.isFinite(val) || !Number.isInteger(val) || val < 0 || val > 120) {
+          return reply
+            .code(400)
+            .send({ error: 'gracePeriodSeconds must be an integer between 0 and 120' });
+        }
+        await configService.setSetting('stall.gracePeriodSeconds', val);
+      }
+
+      const updated = await configService.getRepository().getStallConfig();
+      logger.debug('Stall config updated via API');
+      return reply.send(updated);
+    } catch (e: any) {
+      logger.error('Failed to patch stall config', e);
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
   // ─── Vision Fallthrough ───────────────────────────────────────────
 
   fastify.get('/v0/management/config/vision-fallthrough', async (_request, reply) => {

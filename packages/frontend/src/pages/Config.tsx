@@ -14,6 +14,7 @@ import {
   Timer,
   Compass,
   Radar,
+  Activity,
 } from 'lucide-react';
 import { api } from '../lib/api';
 import { formatMinutesToMinSec } from '@plexus/shared';
@@ -87,8 +88,24 @@ interface TimeoutConfig {
   defaultSeconds: number;
 }
 
+interface StallConfig {
+  ttfbSeconds: number | null;
+  ttfbBytes: number;
+  minBytesPerSecond: number | null;
+  windowSeconds: number;
+  gracePeriodSeconds: number;
+}
+
 const DEFAULT_TIMEOUT_CONFIG: TimeoutConfig = {
   defaultSeconds: 300,
+};
+
+const DEFAULT_STALL_CONFIG: StallConfig = {
+  ttfbSeconds: null,
+  ttfbBytes: 100,
+  minBytesPerSecond: null,
+  windowSeconds: 10,
+  gracePeriodSeconds: 30,
 };
 
 const DEFAULT_BACKGROUND_EXPLORATION: BackgroundExplorationConfig = {
@@ -156,6 +173,16 @@ export const Config = () => {
   const [timeoutSaving, setTimeoutSaving] = useState(false);
   const [timeoutDefaultInput, setTimeoutDefaultInput] = useState('');
 
+  // Stall detection settings state
+  const [stallConfig, setStallConfig] = useState<StallConfig>(DEFAULT_STALL_CONFIG);
+  const [stallLoaded, setStallLoaded] = useState(false);
+  const [stallSaving, setStallSaving] = useState(false);
+  const [stallTtfbInput, setStallTtfbInput] = useState('');
+  const [stallTtfbBytesInput, setStallTtfbBytesInput] = useState('');
+  const [stallMinBpsInput, setStallMinBpsInput] = useState('');
+  const [stallWindowInput, setStallWindowInput] = useState('');
+  const [stallGraceInput, setStallGraceInput] = useState('');
+
   // Validate timeout input
   const validateTimeoutInput = (
     raw: string
@@ -178,6 +205,38 @@ export const Config = () => {
 
   const timeoutDefaultValidation = validateTimeoutInput(timeoutDefaultInput);
   const isTimeoutValid = timeoutLoaded && timeoutDefaultValidation.valid;
+
+  // Validate stall detection inputs
+  const validateStallInput = (
+    raw: string,
+    min: number,
+    max: number,
+    allowNull: boolean = false
+  ): { valid: boolean; value?: number | null; error?: string } => {
+    if (raw === '') {
+      if (allowNull) return { valid: true, value: null };
+      return { valid: true }; // Empty for non-nullable fields means "use default" / unchanged
+    }
+    const num = Number(raw);
+    if (!Number.isFinite(num)) return { valid: false, error: 'Must be a number' };
+    if (!Number.isInteger(num)) return { valid: false, error: 'Must be an integer' };
+    if (num < min) return { valid: false, error: `Must be at least ${min}` };
+    if (num > max) return { valid: false, error: `Must be at most ${max}` };
+    return { valid: true, value: num };
+  };
+
+  const stallTtfbValidation = validateStallInput(stallTtfbInput, 5, 120, true);
+  const stallTtfbBytesValidation = validateStallInput(stallTtfbBytesInput, 50, 10000, false);
+  const stallMinBpsValidation = validateStallInput(stallMinBpsInput, 50, 5000, true);
+  const stallWindowValidation = validateStallInput(stallWindowInput, 3, 30, false);
+  const stallGraceValidation = validateStallInput(stallGraceInput, 0, 120, false);
+  const isStallValid =
+    stallLoaded &&
+    stallTtfbValidation.valid &&
+    stallTtfbBytesValidation.valid &&
+    stallMinBpsValidation.valid &&
+    stallWindowValidation.valid &&
+    stallGraceValidation.valid;
 
   const initialValidation = validateCooldownInput(cooldownInitialInput);
   const maxValidation = validateCooldownInput(cooldownMaxInput);
@@ -379,6 +438,22 @@ export const Config = () => {
     }
   };
 
+  const loadStallConfig = useCallback(async () => {
+    try {
+      const cfg = await api.getStallConfig();
+      setStallConfig(cfg);
+      setStallTtfbInput(cfg.ttfbSeconds != null ? String(cfg.ttfbSeconds) : '');
+      setStallTtfbBytesInput(String(cfg.ttfbBytes));
+      setStallMinBpsInput(cfg.minBytesPerSecond != null ? String(cfg.minBytesPerSecond) : '');
+      setStallWindowInput(String(cfg.windowSeconds));
+      setStallGraceInput(String(cfg.gracePeriodSeconds));
+      setStallLoaded(true);
+    } catch (e) {
+      console.error('Failed to load stall config:', e);
+      toast.error('Failed to load stall detection settings');
+    }
+  }, [toast]);
+
   const handleSaveTimeout = async () => {
     if (!timeoutDefaultValidation.valid) return;
     setTimeoutSaving(true);
@@ -394,6 +469,59 @@ export const Config = () => {
       toast.error((e as Error).message, 'Failed to save timeout settings');
     } finally {
       setTimeoutSaving(false);
+    }
+  };
+
+  const handleSaveStall = async () => {
+    setStallSaving(true);
+    try {
+      const updates: Record<string, unknown> = {};
+      if (stallTtfbInput === '') {
+        updates.ttfbSeconds = null;
+      } else if (stallTtfbValidation.valid && stallTtfbValidation.value !== undefined) {
+        updates.ttfbSeconds = stallTtfbValidation.value;
+      }
+      if (
+        stallTtfbBytesInput !== '' &&
+        stallTtfbBytesValidation.valid &&
+        stallTtfbBytesValidation.value !== undefined
+      ) {
+        updates.ttfbBytes = stallTtfbBytesValidation.value;
+      }
+      if (stallMinBpsInput === '') {
+        updates.minBytesPerSecond = null;
+      } else if (stallMinBpsValidation.valid && stallMinBpsValidation.value !== undefined) {
+        updates.minBytesPerSecond = stallMinBpsValidation.value;
+      }
+      if (
+        stallWindowInput !== '' &&
+        stallWindowValidation.valid &&
+        stallWindowValidation.value !== undefined
+      ) {
+        updates.windowSeconds = stallWindowValidation.value;
+      }
+      if (
+        stallGraceInput !== '' &&
+        stallGraceValidation.valid &&
+        stallGraceValidation.value !== undefined
+      ) {
+        updates.gracePeriodSeconds = stallGraceValidation.value;
+      }
+
+      const updated = await api.patchStallConfig(updates);
+      setStallConfig(updated);
+      setStallTtfbInput(updated.ttfbSeconds != null ? String(updated.ttfbSeconds) : '');
+      setStallTtfbBytesInput(String(updated.ttfbBytes));
+      setStallMinBpsInput(
+        updated.minBytesPerSecond != null ? String(updated.minBytesPerSecond) : ''
+      );
+      setStallWindowInput(String(updated.windowSeconds));
+      setStallGraceInput(String(updated.gracePeriodSeconds));
+      toast.success('Stall detection settings saved');
+    } catch (e) {
+      toast.error((e as Error).message, 'Failed to save stall detection settings');
+    } finally {
+      setStallSaving(false);
     }
   };
 
@@ -472,6 +600,7 @@ export const Config = () => {
     loadFailoverPolicy();
     loadCooldownPolicy();
     loadTimeoutConfig();
+    loadStallConfig();
     loadExplorationRates();
     loadBackgroundExploration();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -973,6 +1102,191 @@ export const Config = () => {
                         : `${timeoutConfig.defaultSeconds}s`
                       : '\u2014'}
                 </span>
+              </div>
+            </div>
+          </div>
+        </Disclosure>
+
+        {/* ─── Stall Detection Settings ────────────────────────────── */}
+        <Disclosure
+          title="Stall Detection"
+          defaultOpen={false}
+          extra={
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleSaveStall}
+              isLoading={stallSaving}
+              disabled={!isStallValid}
+              leftIcon={<Save size={14} />}
+            >
+              Save
+            </Button>
+          }
+        >
+          <div className="flex flex-col gap-5">
+            {/* Description */}
+            <div className="flex items-start gap-2">
+              <Activity size={16} className="text-primary mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-text">Stream Stall Detection</p>
+                <p className="text-xs text-text-muted">
+                  Detect when an upstream provider is taking too long to start responding (TTFB
+                  stall) or is producing data too slowly (throughput stall). When a stall is
+                  detected, the request is aborted so the client can retry with a different
+                  provider. Leave TTFB seconds and min bytes/sec empty to disable each dimension
+                  independently.
+                </p>
+                {stallLoaded && (
+                  <p className="text-xs text-text-muted mt-1">
+                    Status:{' '}
+                    {stallConfig.ttfbSeconds != null || stallConfig.minBytesPerSecond != null
+                      ? 'Enabled'
+                      : 'Disabled (no thresholds set)'}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* TTFB Seconds */}
+            <div>
+              <label
+                htmlFor="stallTtfbSeconds"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                TTFB Timeout (seconds)
+              </label>
+              <p className="text-xs text-text-muted mb-2">
+                Time allowed for the provider to start producing meaningful output. Leave empty to
+                disable TTFB stall detection. Must be between 5 and 120 seconds.
+              </p>
+              <div className="flex flex-col gap-1">
+                <input
+                  id="stallTtfbSeconds"
+                  type="number"
+                  min={5}
+                  max={120}
+                  step={1}
+                  placeholder="Disabled"
+                  value={stallTtfbInput}
+                  onChange={(e) => setStallTtfbInput(e.target.value)}
+                  className="w-full max-w-[200px] rounded-md border border-border bg-bg-glass px-3 py-2 text-sm text-text font-mono placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                {!stallTtfbValidation.valid && stallTtfbInput !== '' && (
+                  <span className="text-xs text-warning">{stallTtfbValidation.error}</span>
+                )}
+              </div>
+            </div>
+
+            {/* TTFB Bytes */}
+            <div>
+              <label htmlFor="stallTtfbBytes" className="block text-sm font-medium text-text mb-1">
+                TTFB Byte Threshold
+              </label>
+              <p className="text-xs text-text-muted mb-2">
+                Byte threshold that confirms the provider is actually producing content. 100 bytes
+                is roughly half a token. Must be between 50 and 10,000.
+              </p>
+              <div className="flex flex-col gap-1">
+                <input
+                  id="stallTtfbBytes"
+                  type="number"
+                  min={50}
+                  max={10000}
+                  step={1}
+                  value={stallTtfbBytesInput}
+                  onChange={(e) => setStallTtfbBytesInput(e.target.value)}
+                  className="w-full max-w-[200px] rounded-md border border-border bg-bg-glass px-3 py-2 text-sm text-text font-mono placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                {!stallTtfbBytesValidation.valid && stallTtfbBytesInput !== '' && (
+                  <span className="text-xs text-warning">{stallTtfbBytesValidation.error}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Min Bytes Per Second */}
+            <div>
+              <label htmlFor="stallMinBps" className="block text-sm font-medium text-text mb-1">
+                Minimum Bytes Per Second
+              </label>
+              <p className="text-xs text-text-muted mb-2">
+                Throughput floor after the grace period. Sliding window check. Leave empty to
+                disable throughput stall detection. 500 B/s is approximately 2-3 tokens/sec. Must be
+                between 50 and 5,000.
+              </p>
+              <div className="flex flex-col gap-1">
+                <input
+                  id="stallMinBps"
+                  type="number"
+                  min={50}
+                  max={5000}
+                  step={1}
+                  placeholder="Disabled"
+                  value={stallMinBpsInput}
+                  onChange={(e) => setStallMinBpsInput(e.target.value)}
+                  className="w-full max-w-[200px] rounded-md border border-border bg-bg-glass px-3 py-2 text-sm text-text font-mono placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                {!stallMinBpsValidation.valid && stallMinBpsInput !== '' && (
+                  <span className="text-xs text-warning">{stallMinBpsValidation.error}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Window Seconds */}
+            <div>
+              <label
+                htmlFor="stallWindowSeconds"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                Sliding Window (seconds)
+              </label>
+              <p className="text-xs text-text-muted mb-2">
+                Width of the sliding window for throughput calculation. Longer = more stable,
+                shorter = more responsive. Must be between 3 and 30 seconds.
+              </p>
+              <div className="flex flex-col gap-1">
+                <input
+                  id="stallWindowSeconds"
+                  type="number"
+                  min={3}
+                  max={30}
+                  step={1}
+                  value={stallWindowInput}
+                  onChange={(e) => setStallWindowInput(e.target.value)}
+                  className="w-full max-w-[200px] rounded-md border border-border bg-bg-glass px-3 py-2 text-sm text-text font-mono placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                {!stallWindowValidation.valid && stallWindowInput !== '' && (
+                  <span className="text-xs text-warning">{stallWindowValidation.error}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Grace Period Seconds */}
+            <div>
+              <label
+                htmlFor="stallGraceSeconds"
+                className="block text-sm font-medium text-text mb-1"
+              >
+                Grace Period (seconds)
+              </label>
+              <p className="text-xs text-text-muted mb-2">
+                Time after TTFB threshold is met before throughput enforcement begins. Allows for
+                natural thinking/reasoning pauses. Must be between 0 and 120 seconds.
+              </p>
+              <div className="flex flex-col gap-1">
+                <input
+                  id="stallGraceSeconds"
+                  type="number"
+                  min={0}
+                  max={120}
+                  step={1}
+                  value={stallGraceInput}
+                  onChange={(e) => setStallGraceInput(e.target.value)}
+                  className="w-full max-w-[200px] rounded-md border border-border bg-bg-glass px-3 py-2 text-sm text-text font-mono placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
+                />
+                {!stallGraceValidation.valid && stallGraceInput !== '' && (
+                  <span className="text-xs text-warning">{stallGraceValidation.error}</span>
+                )}
               </div>
             </div>
           </div>

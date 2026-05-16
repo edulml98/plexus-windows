@@ -48,6 +48,12 @@ export const providers = pgTable(
     gpuPowerDrawWatts: integer('gpu_power_draw_watts'), // Power draw in watts
     adapter: jsonb('adapter'), // string[] — provider-level adapter names
     timeoutMs: integer('timeout_ms'), // Per-provider upstream request timeout in ms (NULL = use global default)
+    // Per-provider stall detection overrides (NULL = use global setting)
+    stallTtfbMs: integer('stall_ttfb_ms'), // TTFB timeout in ms
+    stallTtfbBytes: integer('stall_ttfb_bytes'), // TTFB byte threshold
+    stallMinBps: integer('stall_min_bps'), // Minimum bytes per second for throughput stall
+    stallWindowMs: integer('stall_window_ms'), // Sliding window width in ms for throughput calculation
+    stallGracePeriodMs: integer('stall_grace_period_ms'), // Grace period in ms before throughput enforcement
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     updatedAt: bigint('updated_at', { mode: 'number' }).notNull(),
   },

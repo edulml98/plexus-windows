@@ -238,6 +238,12 @@ export interface Provider {
   gpu_power_draw_watts?: number;
   adapter?: string[];
   timeoutMs?: number;
+  // Per-provider stall detection overrides
+  stallTtfbMs?: number | null;
+  stallTtfbBytes?: number | null;
+  stallMinBps?: number | null;
+  stallWindowMs?: number | null;
+  stallGracePeriodMs?: number | null;
 }
 
 export interface McpServer {
@@ -1669,6 +1675,11 @@ export const api = {
           quotaChecker: normalizeProviderQuotaChecker(val.quota_checker),
           adapter: val.adapter ? (Array.isArray(val.adapter) ? val.adapter : [val.adapter]) : [],
           timeoutMs: val.timeoutMs ?? undefined,
+          stallTtfbMs: val.stallTtfbMs ?? undefined,
+          stallTtfbBytes: val.stallTtfbBytes ?? undefined,
+          stallMinBps: val.stallMinBps ?? undefined,
+          stallWindowMs: val.stallWindowMs ?? undefined,
+          stallGracePeriodMs: val.stallGracePeriodMs ?? undefined,
         };
       });
     } catch (e) {
@@ -1714,6 +1725,13 @@ export const api = {
         : {}),
       ...(provider.adapter && provider.adapter.length > 0 ? { adapter: provider.adapter } : {}),
       ...(provider.timeoutMs != null ? { timeoutMs: provider.timeoutMs } : {}),
+      ...(provider.stallTtfbMs != null ? { stallTtfbMs: provider.stallTtfbMs } : {}),
+      ...(provider.stallTtfbBytes != null ? { stallTtfbBytes: provider.stallTtfbBytes } : {}),
+      ...(provider.stallMinBps != null ? { stallMinBps: provider.stallMinBps } : {}),
+      ...(provider.stallWindowMs != null ? { stallWindowMs: provider.stallWindowMs } : {}),
+      ...(provider.stallGracePeriodMs != null
+        ? { stallGracePeriodMs: provider.stallGracePeriodMs }
+        : {}),
     };
 
     const res = await fetchWithAuth(
@@ -3176,6 +3194,44 @@ export const api = {
       body: JSON.stringify(updates),
     });
     if (!res.ok) throw new Error('Failed to update timeout settings');
+    return res.json();
+  },
+
+  // ─── Stall Detection Settings ────────────────────────────────────
+
+  /** Fetch current stall detection settings. */
+  getStallConfig: async (): Promise<{
+    ttfbSeconds: number | null;
+    ttfbBytes: number;
+    minBytesPerSecond: number | null;
+    windowSeconds: number;
+    gracePeriodSeconds: number;
+  }> => {
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/config/stall`);
+    if (!res.ok) throw new Error('Failed to fetch stall detection settings');
+    return res.json();
+  },
+
+  /** Patch stall detection settings. */
+  patchStallConfig: async (updates: {
+    ttfbSeconds?: number | null;
+    ttfbBytes?: number;
+    minBytesPerSecond?: number | null;
+    windowSeconds?: number;
+    gracePeriodSeconds?: number;
+  }): Promise<{
+    ttfbSeconds: number | null;
+    ttfbBytes: number;
+    minBytesPerSecond: number | null;
+    windowSeconds: number;
+    gracePeriodSeconds: number;
+  }> => {
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/config/stall`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error('Failed to update stall detection settings');
     return res.json();
   },
 };

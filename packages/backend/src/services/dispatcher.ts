@@ -26,6 +26,7 @@ import { applyModelBehaviors } from './model-behaviors';
 import { resolveAdapters } from './adapter-resolver';
 import type { ProviderAdapter } from '../types/provider-adapter';
 import { getModels } from '@earendil-works/pi-ai';
+import type { StallConfig } from './inspectors/stall-inspector';
 import { VisionDescriptorService } from './vision-descriptor-service';
 import { ModelMetadataManager } from './model-metadata-manager';
 import { enforceContextLimit } from './enforce-limits';
@@ -243,7 +244,14 @@ export class Dispatcher {
   async dispatch(
     request: UnifiedChatRequest,
     signal?: AbortSignal,
-    addTimeoutSource?: (timeoutMs: number) => void
+    addTimeoutSource?: (timeoutMs: number) => void,
+    addStallConfig?: (providerOverrides: {
+      stallTtfbMs?: number | null;
+      stallTtfbBytes?: number | null;
+      stallMinBps?: number | null;
+      stallWindowMs?: number | null;
+      stallGracePeriodMs?: number | null;
+    }) => void
   ): Promise<UnifiedChatResponse> {
     const config = getConfig();
     const failover = config.failover;
@@ -467,7 +475,57 @@ export class Dispatcher {
           addTimeoutSource(route.config.timeoutMs);
         }
 
+        // Wire per-provider stall detection overrides if set.
+        if (addStallConfig) {
+          const providerStallOverrides: Parameters<typeof addStallConfig>[0] = {};
+          if (route.config.stallTtfbMs !== undefined)
+            providerStallOverrides.stallTtfbMs = route.config.stallTtfbMs;
+          if (route.config.stallTtfbBytes !== undefined)
+            providerStallOverrides.stallTtfbBytes = route.config.stallTtfbBytes;
+          if (route.config.stallMinBps !== undefined)
+            providerStallOverrides.stallMinBps = route.config.stallMinBps;
+          if (route.config.stallWindowMs !== undefined)
+            providerStallOverrides.stallWindowMs = route.config.stallWindowMs;
+          if (route.config.stallGracePeriodMs !== undefined)
+            providerStallOverrides.stallGracePeriodMs = route.config.stallGracePeriodMs;
+          logger.debug(
+            `Dispatcher: provider stall overrides for ${route.provider}: ${JSON.stringify(providerStallOverrides)}, ` +
+              `route.config stall fields: stallTtfbMs=${route.config.stallTtfbMs}, stallMinBps=${route.config.stallMinBps}`
+          );
+          if (Object.keys(providerStallOverrides).length > 0) {
+            addStallConfig(providerStallOverrides);
+          }
+        }
+
         const incomingApi = currentRequest.incomingApiType || 'unknown';
+
+        // Resolve stall config BEFORE the fetch so we can wrap fetch+probe
+        // in a TTFB timeout. This is critical because fetch() itself may block
+        // for a long time waiting for HTTP response headers — the TTFB timeout
+        // must cover this "headers phase" too, not just the body reading.
+        const globalStall = (getConfig() as any).stall;
+        const stallTtfbMs =
+          route.config.stallTtfbMs ??
+          (globalStall?.ttfbSeconds != null ? globalStall.ttfbSeconds * 1000 : null);
+        let effectiveStallConfig: StallConfig | null =
+          stallTtfbMs != null ||
+          route.config.stallMinBps != null ||
+          globalStall?.minBytesPerSecond != null
+            ? {
+                ttfbMs: stallTtfbMs,
+                ttfbBytes: route.config.stallTtfbBytes ?? globalStall?.ttfbBytes ?? 100,
+                minBytesPerSecond:
+                  route.config.stallMinBps ?? globalStall?.minBytesPerSecond ?? null,
+                windowMs: route.config.stallWindowMs ?? (globalStall?.windowSeconds ?? 10) * 1000,
+                gracePeriodMs:
+                  route.config.stallGracePeriodMs ?? (globalStall?.gracePeriodSeconds ?? 30) * 1000,
+              }
+            : null;
+
+        logger.debug(
+          `Dispatcher: effectiveStallConfig for ${route.provider}: ${JSON.stringify(effectiveStallConfig)}, ` +
+            `route.config.stallTtfbMs=${route.config.stallTtfbMs}, route.config.stallMinBps=${route.config.stallMinBps}`
+        );
 
         logger.info(
           `Dispatching ${currentRequest.model} to ${route.provider}:${route.model} ${incomingApi} <-> ${transformer.name}`
@@ -475,7 +533,115 @@ export class Dispatcher {
 
         logger.silly('Upstream Request Payload', providerPayload);
 
-        const response = await this.executeProviderRequest(url, headers, providerPayload, signal);
+        // When TTFB stall detection is configured for streaming requests, wrap
+        // the fetch + probe in a single timeout that covers the entire TTFB
+        // window (from request dispatch to receiving ttfbBytes of body data).
+        // This handles the case where fetch() itself blocks for a long time
+        // waiting for HTTP response headers from a slow provider.
+        let response: Response;
+        let stallAbortController: AbortController | undefined;
+        let ttfbTimerId: ReturnType<typeof setTimeout> | undefined;
+        const dispatchStartTime = Date.now();
+
+        if (currentRequest.stream && effectiveStallConfig?.ttfbMs != null) {
+          // Create a separate AbortController for the TTFB stall timeout.
+          // We don't use the route's abortController because an abort there
+          // means the client disconnected — we need a distinct signal for
+          // "provider is too slow to start responding".
+          stallAbortController = new AbortController();
+          const combinedSignal = signal
+            ? AbortSignal.any([signal, stallAbortController.signal])
+            : stallAbortController.signal;
+
+          const ttfbMs = effectiveStallConfig.ttfbMs!;
+          ttfbTimerId = setTimeout(() => {
+            stallAbortController!.abort(
+              new DOMException(
+                `Stream stalled: TTFB timeout — no response within ${ttfbMs}ms`,
+                'TimeoutError'
+              )
+            );
+          }, ttfbMs);
+          ttfbTimerId.unref?.();
+
+          try {
+            response = await this.executeProviderRequest(
+              url,
+              headers,
+              providerPayload,
+              combinedSignal
+            );
+          } catch (fetchError: any) {
+            // Client disconnected takes priority over stall detection —
+            // if the client is gone, no point retrying.
+            if (signal?.aborted) {
+              clearTimeout(ttfbTimerId);
+              throw this.buildCancelledError(signal);
+            }
+
+            // If the error was caused by our TTFB stall timeout, synthesize
+            // a stall result instead of treating it as a generic network error.
+            if (stallAbortController.signal.aborted) {
+              clearTimeout(ttfbTimerId);
+              const stallError = new Error(
+                `Stream stalled: TTFB timeout — no response within ${ttfbMs}ms`
+              );
+              lastError = stallError;
+
+              const canRetryStall =
+                failoverEnabled &&
+                i < targets.length - 1 &&
+                (this.isRetryableNetworkError(stallError, failover?.retryableErrors || []) ||
+                  stallError.message?.includes('stalled'));
+
+              if (canRetryStall) {
+                await this.recordAttemptMetric(route, currentRequest.requestId, false, {
+                  isVisionFallthrough: (currentRequest as any)._hasVisionFallthrough,
+                  isDescriptorRequest: (currentRequest as any)._isVisionDescriptorRequest,
+                  visionFallthroughModel: (currentRequest as any)._visionFallthroughModel,
+                });
+                this.appendFailureAttempt(retryHistory, route, stallError, targetApiType, true);
+                CooldownManager.getInstance().markProviderFailure(
+                  route.provider,
+                  route.model,
+                  undefined,
+                  this.formatFailureReason(stallError)
+                );
+                this.saveIntermediateError(
+                  currentRequest.requestId,
+                  targetApiType || 'chat',
+                  stallError
+                );
+                logger.info(
+                  `TTFB stall: fetch timed out after ${ttfbMs}ms for ${route.provider}/${route.model}, retrying with next provider`
+                );
+                continue;
+              }
+
+              throw stallError;
+            }
+            throw fetchError;
+          }
+
+          // Fetch returned — clear the TTFB timer (we beat the timeout)
+          clearTimeout(ttfbTimerId);
+          ttfbTimerId = undefined;
+
+          // Adjust the stall config's ttfbMs for the probe — subtract the time
+          // already spent waiting for fetch() to return. The probe only needs
+          // to cover the remaining time until the byte threshold is met.
+          const fetchElapsed = Date.now() - dispatchStartTime;
+          const remainingTtfbMs = Math.max(0, ttfbMs - fetchElapsed);
+          if (remainingTtfbMs <= 0 && effectiveStallConfig) {
+            // Fetch returned just barely within the TTFB window — no time left
+            // for the probe. Skip the probe and let the pipeline handle it.
+            effectiveStallConfig = { ...effectiveStallConfig, ttfbMs: null };
+          } else if (effectiveStallConfig) {
+            effectiveStallConfig = { ...effectiveStallConfig, ttfbMs: remainingTtfbMs };
+          }
+        } else {
+          response = await this.executeProviderRequest(url, headers, providerPayload, signal);
+        }
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -528,7 +694,10 @@ export class Dispatcher {
 
         // 5. Handle Response
         if (currentRequest.stream) {
-          const streamProbe = await this.probeStreamingStart(response);
+          // effectiveStallConfig was already computed before the fetch above.
+          // If TTFB stall is still active (fetch returned within TTFB but body
+          // hasn't met the byte threshold yet), the probe will continue checking.
+          const streamProbe = await this.probeStreamingStart(response, effectiveStallConfig);
 
           if (!streamProbe.ok) {
             const error = streamProbe.error;
@@ -538,7 +707,8 @@ export class Dispatcher {
               failoverEnabled &&
               i < targets.length - 1 &&
               !streamProbe.streamStarted &&
-              this.isRetryableNetworkError(error, failover?.retryableErrors || []);
+              (this.isRetryableNetworkError(error, failover?.retryableErrors || []) ||
+                error.message?.includes('stalled'));
 
             if (canRetry) {
               await this.recordAttemptMetric(route, currentRequest.requestId, false, {
@@ -623,6 +793,11 @@ export class Dispatcher {
       } catch (error: any) {
         lastError = error;
 
+        // If the client disconnected (abort signal), don't treat this as a
+        // retryable error — throw a proper client_disconnected error so the
+        // route handler records it as cancelled, not as an inference error.
+        if (signal?.aborted) throw this.buildCancelledError(signal);
+
         // If the error came from handleProviderError, it already called markProviderFailure.
         // Only call it here for network/transport errors that have no HTTP status code.
         const isHttpError = error?.routingContext?.statusCode !== undefined;
@@ -645,7 +820,8 @@ export class Dispatcher {
         const canRetryNetwork =
           failoverEnabled &&
           i < targets.length - 1 &&
-          this.isRetryableNetworkError(error, failover?.retryableErrors || []);
+          (this.isRetryableNetworkError(error, failover?.retryableErrors || []) ||
+            error.message?.includes('stalled'));
 
         this.appendFailureAttempt(retryHistory, route, error, undefined, canRetryNetwork);
 
@@ -731,7 +907,8 @@ export class Dispatcher {
   }
 
   private async probeStreamingStart(
-    response: Response
+    response: Response,
+    stallConfig?: StallConfig | null
   ): Promise<
     { ok: true; response: Response } | { ok: false; error: Error; streamStarted: boolean }
   > {
@@ -739,6 +916,19 @@ export class Dispatcher {
       return { ok: true, response };
     }
 
+    // When TTFB stall detection is configured, probe the stream until we've
+    // received ttfbBytes or the TTFB timeout fires. This allows the
+    // failover loop to retry with a different provider when a provider is
+    // slow to start responding.
+    if (stallConfig?.ttfbMs != null) {
+      logger.debug(
+        `probeStreamingStart: using stall-aware probe (ttfbMs=${stallConfig.ttfbMs}, ttfbBytes=${stallConfig.ttfbBytes})`
+      );
+      return this.probeStreamingStartWithStallCheck(response, stallConfig);
+    }
+
+    // Original 100ms probe — if the first byte doesn't arrive within 100ms,
+    // let the stream continue in the background.
     const reader = response.body.getReader();
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -831,6 +1021,118 @@ export class Dispatcher {
       };
     } finally {
       if (timeoutId) clearTimeout(timeoutId);
+    }
+  }
+
+  /**
+   * Stall-aware stream probe: reads from the stream until we've received
+   * `stallConfig.ttfbBytes` bytes or the TTFB timeout fires.
+   *
+   * - If TTFB threshold is met → returns ok:true, stream continues normally.
+   * - If TTFB timeout fires → returns ok:false with a stall error, which the
+   *   failover loop treats as retryable (same as a network error before first byte).
+   */
+  private async probeStreamingStartWithStallCheck(
+    response: Response,
+    stallConfig: StallConfig
+  ): Promise<
+    { ok: true; response: Response } | { ok: false; error: Error; streamStarted: boolean }
+  > {
+    const reader = response.body!.getReader();
+    const ttfbBytes = stallConfig.ttfbBytes;
+    const ttfbMs = stallConfig.ttfbMs!;
+
+    // Collected chunks to replay into the response stream
+    const chunks: Uint8Array[] = [];
+    let totalBytes = 0;
+    let streamStarted = false;
+
+    // TTFB stall timer
+    let ttfbTimerId: ReturnType<typeof setTimeout> | undefined;
+    const ttfbTimeoutPromise = new Promise<'ttfb_timeout'>((resolve) => {
+      ttfbTimerId = setTimeout(() => resolve('ttfb_timeout'), ttfbMs);
+    });
+
+    try {
+      // Read chunks until we hit the TTFB byte threshold or the timeout
+      while (totalBytes < ttfbBytes) {
+        const readPromise = reader.read();
+        const result = await Promise.race([readPromise, ttfbTimeoutPromise]);
+
+        if (result === 'ttfb_timeout') {
+          // TTFB stall detected — abort the reader
+          reader
+            .cancel(new DOMException('Stream stalled: TTFB timeout', 'TimeoutError'))
+            .catch(() => {});
+          logger.info(
+            `TTFB stall probe: received ${totalBytes} bytes within ${ttfbMs}ms ` +
+              `(threshold: ${ttfbBytes} bytes)`
+          );
+          return {
+            ok: false,
+            error: new Error(
+              `Stream stalled: TTFB timeout — received ${totalBytes} bytes in ${ttfbMs}ms ` +
+                `(threshold: ${ttfbBytes} bytes within ${ttfbMs}ms)`
+            ),
+            streamStarted,
+          };
+        }
+
+        const { done, value } = result as ReadableStreamReadResult<Uint8Array>;
+        if (done) {
+          // Stream ended before we got enough bytes — not a stall, just a short response
+          break;
+        }
+
+        chunks.push(value);
+        totalBytes += value.length;
+        streamStarted = true;
+      }
+
+      // TTFB threshold met (or stream ended naturally) — build replay stream
+      const replayChunks = [...chunks];
+      let chunkIndex = 0;
+      const replay = new ReadableStream<Uint8Array>({
+        start(controller) {
+          // Replay buffered chunks
+          while (chunkIndex < replayChunks.length) {
+            controller.enqueue(replayChunks[chunkIndex]!);
+            chunkIndex++;
+          }
+        },
+        async pull(controller) {
+          try {
+            const next = await reader.read();
+            if (next.done) {
+              controller.close();
+            } else {
+              controller.enqueue(next.value);
+            }
+          } catch (error) {
+            controller.error(error);
+          }
+        },
+        cancel(reason) {
+          return reader.cancel(reason);
+        },
+      });
+
+      return {
+        ok: true,
+        response: new Response(replay, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        }),
+      };
+    } catch (error: any) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error : new Error(String(error)),
+        streamStarted,
+      };
+    } finally {
+      if (ttfbTimerId) clearTimeout(ttfbTimerId);
     }
   }
 
@@ -2906,7 +3208,7 @@ export class Dispatcher {
 
         let responseForProcessing = response;
         if (isStreamed) {
-          const streamProbe = await this.probeStreamingStart(response);
+          const streamProbe = await this.probeStreamingStart(response, null);
 
           if (!streamProbe.ok) {
             const error = streamProbe.error;
