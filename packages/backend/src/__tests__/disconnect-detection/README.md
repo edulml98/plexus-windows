@@ -95,6 +95,24 @@ Used to discover `Symbol(handle)` and the `bunHandle.closed` property.
 | `nodeStream.destroy()` | ✅ | Propagates cancel() to upstream fetch |
 | `Bun.serve() request.signal` | ✅ | But requires native Bun HTTP, not Fastify |
 
+### `test-timeout-abort-signal.ts`
+Confirms that `abortController.abort()` alone does **not** stop an already-in-progress
+`Readable.fromWeb()` read loop. The same root cause as the client-disconnect bug —
+the abort signal is consumed by `fetch()` at call time; aborting it afterwards has no
+effect on the streaming body. The upstream fetch keeps running indefinitely. ❌
+
+### `test-timeout-nodestream-destroy.ts`
+Confirms that `abort()` + `nodeStream.destroy()` together do cancel the upstream
+correctly, stopping the fetch within one tick of the interval. ✅
+
+### `test-timeout-signal-listener.ts`
+**The correct pattern for timeout support.** Adding `signal.addEventListener('abort',
+() => nodeStream.destroy())` means any abort reason — client disconnect, timeout,
+or anything else — flows through the correct cancellation path automatically. This
+is what `response-handler.ts` now does, so that future timeout wiring at the route
+level (e.g. `AbortSignal.any([signal, AbortSignal.timeout(ms)])`) requires no
+further changes to the streaming handler. ✅
+
 ## Relevant Bun Issues
 
 - https://github.com/oven-sh/bun/issues/14697 — ServerResponse doesn't emit close event

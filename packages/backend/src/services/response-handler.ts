@@ -257,6 +257,17 @@ export async function handleResponse(
     //
     // We also call abortController.abort() as belt-and-suspenders, since the fetch
     // was initiated with that signal.
+    //
+    // TIMEOUT ABORTS HAVE THE SAME BUG
+    // ---------------------------------
+    // abortController.abort() alone (whether triggered by a timeout or anything else)
+    // also does NOT stop an already-in-progress Readable.fromWeb() read loop. The
+    // abort signal is consumed by fetch() at call time; aborting it afterwards has
+    // no effect on the streaming body read. nodeStream.destroy() is required in all
+    // cases. We wire abortController.signal's 'abort' event to onDisconnect() so
+    // that any future timeout wiring (e.g. AbortSignal.any([signal, AbortSignal.timeout(ms)]))
+    // at the route level will automatically flow through the correct cancellation path
+    // with no further changes needed here. See test-timeout-*.ts.
     // =============================================================================
     let disconnected = false;
     let disconnectPoll: ReturnType<typeof setInterval> | null = null;
@@ -279,6 +290,16 @@ export async function handleResponse(
     };
 
     if (abortController) {
+      // Wire the abort signal so that timeout aborts (e.g. AbortSignal.timeout() or
+      // AbortSignal.any([clientSignal, AbortSignal.timeout(ms)])) also trigger
+      // nodeStream.destroy(). abortController.abort() alone does NOT stop an
+      // already-in-progress Readable.fromWeb() read loop — the same root cause as
+      // the client-disconnect bug. This listener ensures any abort reason goes through
+      // the correct cancellation path. See test-timeout-signal-listener.ts.
+      abortController.signal.addEventListener('abort', () => onDisconnect('signal.abort'), {
+        once: true,
+      });
+
       // Poll bunHandle.closed every 250ms — the only reliable client-disconnect
       // signal available in Bun's node:http layer for POST requests (see above).
       disconnectPoll = setInterval(() => {
