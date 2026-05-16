@@ -240,7 +240,7 @@ export class Dispatcher {
     );
   }
 
-  async dispatch(request: UnifiedChatRequest): Promise<UnifiedChatResponse> {
+  async dispatch(request: UnifiedChatRequest, signal?: AbortSignal): Promise<UnifiedChatResponse> {
     const config = getConfig();
     const failover = config.failover;
     const failoverEnabled = failover?.enabled !== false;
@@ -274,6 +274,7 @@ export class Dispatcher {
     const isVisionDescriptorRequest = (request as any)._isVisionDescriptorRequest === true;
 
     for (let i = 0; i < targets.length; i++) {
+      if (signal?.aborted) throw this.buildCancelledError(signal);
       let currentRequest = { ...request };
       const route = targets[i]!;
 
@@ -403,7 +404,8 @@ export class Dispatcher {
               currentRequest,
               route,
               targetApiType,
-              transformer
+              transformer,
+              signal
             );
             await this.recordAttemptMetric(route, currentRequest.requestId, true, {
               isVisionFallthrough: (currentRequest as any)._hasVisionFallthrough,
@@ -420,6 +422,7 @@ export class Dispatcher {
             );
             return oauthResponse;
           } catch (oauthError: any) {
+            if (signal?.aborted) throw this.buildCancelledError(signal);
             lastError = oauthError;
             const canRetry =
               failoverEnabled && i < targets.length - 1 && this.isRetryableOAuthError(oauthError);
@@ -461,7 +464,7 @@ export class Dispatcher {
 
         logger.silly('Upstream Request Payload', providerPayload);
 
-        const response = await this.executeProviderRequest(url, headers, providerPayload);
+        const response = await this.executeProviderRequest(url, headers, providerPayload, signal);
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -481,6 +484,7 @@ export class Dispatcher {
               currentRequest.requestId
             );
           } catch (e: any) {
+            if (signal?.aborted) throw this.buildCancelledError(signal);
             lastError = e;
             this.appendFailureAttempt(retryHistory, route, e, targetApiType, canRetry);
 
@@ -1609,7 +1613,8 @@ export class Dispatcher {
     request: UnifiedChatRequest,
     route: RouteResult,
     targetApiType: string,
-    transformer: any
+    transformer: any,
+    signal?: AbortSignal
   ): Promise<UnifiedChatResponse> {
     if (!transformer.executeRequest) {
       throw new Error('OAuth transformer missing executeRequest()');
@@ -1671,7 +1676,8 @@ export class Dispatcher {
         route.model,
         !!request.stream,
         oauthOptions,
-        authConfig
+        authConfig,
+        signal
       );
 
       if (request.stream) {
@@ -1709,6 +1715,16 @@ export class Dispatcher {
     } catch (error: any) {
       throw this.wrapOAuthError(error, route, targetApiType);
     }
+  }
+
+  private buildCancelledError(signal: AbortSignal): Error {
+    const isTimeout = signal.reason?.name === 'TimeoutError';
+    const err = new Error(isTimeout ? 'Upstream timeout' : 'Client disconnected') as any;
+    err.routingContext = {
+      statusCode: isTimeout ? 504 : 499,
+      code: isTimeout ? 'upstream_timeout' : 'client_disconnected',
+    };
+    return err;
   }
 
   private assertOAuthModelSupported(oauthProvider: string, modelId: string) {
@@ -2018,12 +2034,14 @@ export class Dispatcher {
   private async executeProviderRequest(
     url: string,
     headers: Record<string, string>,
-    payload: any
+    payload: any,
+    signal?: AbortSignal
   ): Promise<Response> {
     return await fetch(url, {
       method: 'POST',
       headers,
       body: JSON.stringify(payload),
+      signal,
     });
   }
 

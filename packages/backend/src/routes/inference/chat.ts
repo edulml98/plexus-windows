@@ -86,7 +86,8 @@ export async function registerChatRoute(
         if (!allowed) return;
       }
 
-      const unifiedResponse = await dispatcher.dispatch(unifiedRequest);
+      const abortController = new AbortController();
+      const unifiedResponse = await dispatcher.dispatch(unifiedRequest, abortController.signal);
 
       // Emit 'updated' event with routing decision details
       usageStorage.emitUpdatedAsync({
@@ -116,11 +117,16 @@ export async function registerChatRoute(
         shouldEstimateTokens,
         body,
         quotaEnforcer,
-        (request as any).keyName
+        (request as any).keyName,
+        abortController
       );
 
       return result;
     } catch (e: any) {
+      if (e?.routingContext?.code === 'client_disconnected' || e?.routingContext?.code === 'upstream_timeout') {
+        logger.info(`Request ${requestId}: ${e.message}, usage recorded as ${e?.routingContext?.code === 'upstream_timeout' ? 'timeout' : 'cancelled'}`);
+        return;
+      }
       usageRecord.responseStatus = 'error';
       usageRecord.durationMs = Date.now() - startTime;
       usageRecord.attemptCount = e.routingContext?.attemptCount || usageRecord.attemptCount || 1;

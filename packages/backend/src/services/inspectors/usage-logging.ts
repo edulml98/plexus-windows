@@ -29,6 +29,7 @@ export class UsageInspector extends PassThrough {
   private firstChunk = true;
   private quotaEnforcer?: any;
   private keyName?: string;
+  private _flushed = false;
 
   private modelParams: ModelParams;
   private gpuParams: GpuParams;
@@ -75,6 +76,7 @@ export class UsageInspector extends PassThrough {
   }
 
   override _flush(callback: Function) {
+    this._flushed = true;
     const stats = {
       inputTokens: 0,
       outputTokens: 0,
@@ -218,6 +220,56 @@ export class UsageInspector extends PassThrough {
       logger.error(`Error analyzing usage for ${this.usageRecord.requestId}:`, err);
       callback();
     }
+  }
+
+  override _destroy(err: Error | null, callback: (error?: Error | null) => void) {
+    if (this._flushed) {
+      callback(err);
+      return;
+    }
+
+    const isTimeout = err?.name === 'TimeoutError' || err?.message?.includes('timeout');
+    const status = isTimeout ? 'timeout' : 'cancelled';
+
+    logger.info(
+      `UsageInspector: stream destroyed for ${this.usageRecord.requestId} ` +
+        `(responseStatus=${status}, err=${err?.message ?? 'none'})`
+    );
+
+    try {
+      this.usageRecord.responseStatus = status;
+      this.usageRecord.durationMs = Date.now() - this.startTime;
+
+      const debugManager = DebugManager.getInstance();
+      const reconstructed = debugManager.getReconstructedRawResponse(this.usageRecord.requestId!);
+      if (reconstructed) {
+        const usage = this.extractUsageFromReconstructed(reconstructed, this.apiType);
+        if (usage) {
+          this.usageRecord.tokensInput = usage.inputTokens || null;
+          this.usageRecord.tokensOutput = usage.outputTokens || null;
+          this.usageRecord.tokensCached = usage.cachedTokens || null;
+          this.usageRecord.tokensCacheWrite = usage.cacheWriteTokens || null;
+          this.usageRecord.tokensReasoning = usage.reasoningTokens || null;
+        }
+        calculateCosts(this.usageRecord, this.pricing, this.providerDiscount);
+      }
+
+      this.usageStorage.saveRequest(this.usageRecord as UsageRecord).catch((saveErr) => {
+        logger.error(
+          `Failed to save ${status} usage for ${this.usageRecord.requestId}:`,
+          saveErr
+        );
+      });
+
+      debugManager.flush(this.usageRecord.requestId!);
+    } catch (destroyErr) {
+      logger.error(
+        `Error in UsageInspector._destroy for ${this.usageRecord.requestId}:`,
+        destroyErr
+      );
+    }
+
+    callback(err);
   }
 
   private extractUsageFromReconstructed(reconstructed: any, apiType: string): any {

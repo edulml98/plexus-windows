@@ -36,7 +36,8 @@ export async function handleResponse(
   shouldEstimateTokens: boolean = false,
   originalRequest?: any,
   quotaEnforcer?: QuotaEnforcer,
-  keyName?: string
+  keyName?: string,
+  abortController?: AbortController
 ) {
   // Populate usage record with metadata from the dispatcher's selection
   usageRecord.selectedModelName = unifiedResponse.plexus?.model || unifiedResponse.model; // Fallback to unifiedResponse.model if plexus.model is missing
@@ -185,15 +186,59 @@ export async function handleResponse(
     // rawLogInspector is already tapped via the TransformStream above
     const pipeline = nodeStream.pipe(usageInspector);
 
-    // Restore debug mode state when the stream ends (not before!)
+    // --- Client disconnect + upstream cancellation wiring ---
+    let disconnected = false;
+    let disconnectPoll: ReturnType<typeof setInterval> | null = null;
+
+    const onDisconnect = () => {
+      if (disconnected) return;
+      disconnected = true;
+      logger.debug(`Client disconnected for request ${usageRecord.requestId}, aborting upstream`);
+      abortController?.abort();
+      pipeline.destroy(new Error('client_disconnected'));
+    };
+
+    if (abortController) {
+      // Primary: request.raw 'close' — reliable in Bun 1.3.x (PR #13738)
+      request.raw.once('close', onDisconnect);
+
+      // Secondary: poll reply.raw.destroyed — belt-and-suspenders since
+      // ServerResponse close (#14697) is less reliable in Bun 1.3.x
+      disconnectPoll = setInterval(() => {
+        if (reply.raw.destroyed) onDisconnect();
+        if (pipeline.destroyed || pipeline.readableEnded) {
+          if (disconnectPoll) { clearInterval(disconnectPoll); disconnectPoll = null; }
+        }
+      }, 250);
+    }
+
+    const cleanupDisconnectWiring = () => {
+      if (disconnectPoll) { clearInterval(disconnectPoll); disconnectPoll = null; }
+      request.raw.off('close', onDisconnect);
+    };
+
+    pipeline.once('end', cleanupDisconnectWiring);
+
+    pipeline.on('error', (err: any) => {
+      // Write-level errors mean the client socket closed under us
+      const code = err?.code;
+      if (code === 'EPIPE' || code === 'ECONNRESET' || code === 'ERR_STREAM_DESTROYED') {
+        onDisconnect();
+      }
+      cleanupDisconnectWiring();
+      // Restore debug mode on error
+      if (shouldEstimateTokens && !wasDebugEnabled) {
+        debugManager.setEnabled(false);
+      }
+    });
+
+    // Restore debug mode on normal end
     if (shouldEstimateTokens && !wasDebugEnabled) {
       pipeline.on('end', () => {
         debugManager.setEnabled(false);
       });
-      pipeline.on('error', () => {
-        debugManager.setEnabled(false);
-      });
     }
+    // --- end disconnect wiring ---
 
     usageRecord.responseStatus = 'success';
 
