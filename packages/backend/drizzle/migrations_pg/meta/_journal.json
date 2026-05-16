@@ -358,6 +358,13 @@
       "when": 1778735856746,
       "tag": "0050_marvelous_jackal",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1778905467906,
+      "tag": "0051_magenta_talon",
+      "breakpoints": true
     }
   ]
 }

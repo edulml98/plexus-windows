@@ -288,6 +288,13 @@
       "when": 1778735850501,
       "tag": "0040_motionless_baron_zemo",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1778905467722,
+      "tag": "0041_fearless_baron_strucker",
+      "breakpoints": true
     }
   ]
 }

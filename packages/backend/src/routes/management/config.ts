@@ -583,6 +583,43 @@ export async function registerConfigRoutes(
     }
   });
 
+  // ─── Timeout Config ───────────────────────────────────────────────
+
+  fastify.get('/v0/management/config/timeout', async (_request, reply) => {
+    try {
+      const timeout = await configService.getRepository().getTimeoutConfig();
+      return reply.send(timeout);
+    } catch (e: any) {
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  fastify.patch('/v0/management/config/timeout', async (request, reply) => {
+    const body = request.body as Record<string, unknown> | null;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return reply.code(400).send({ error: 'Object body is required' });
+    }
+
+    try {
+      if (body.defaultSeconds !== undefined) {
+        const val = Number(body.defaultSeconds);
+        if (!Number.isFinite(val) || !Number.isInteger(val) || val < 1 || val > 3600) {
+          return reply
+            .code(400)
+            .send({ error: 'defaultSeconds must be an integer between 1 and 3600' });
+        }
+        await configService.setSetting('timeout.defaultSeconds', val);
+      }
+
+      const updated = await configService.getRepository().getTimeoutConfig();
+      logger.debug('Timeout config updated via API');
+      return reply.send(updated);
+    } catch (e: any) {
+      logger.error('Failed to patch timeout config', e);
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
   // ─── Vision Fallthrough ───────────────────────────────────────────
 
   fastify.get('/v0/management/config/vision-fallthrough', async (_request, reply) => {

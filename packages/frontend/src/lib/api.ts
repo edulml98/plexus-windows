@@ -237,6 +237,7 @@ export interface Provider {
   gpu_flops_tflop?: number;
   gpu_power_draw_watts?: number;
   adapter?: string[];
+  timeoutMs?: number;
 }
 
 export interface McpServer {
@@ -1667,6 +1668,7 @@ export const api = {
           models: normalizedModels,
           quotaChecker: normalizeProviderQuotaChecker(val.quota_checker),
           adapter: val.adapter ? (Array.isArray(val.adapter) ? val.adapter : [val.adapter]) : [],
+          timeoutMs: val.timeoutMs ?? undefined,
         };
       });
     } catch (e) {
@@ -1711,6 +1713,7 @@ export const api = {
         ? { gpu_power_draw_watts: provider.gpu_power_draw_watts }
         : {}),
       ...(provider.adapter && provider.adapter.length > 0 ? { adapter: provider.adapter } : {}),
+      ...(provider.timeoutMs != null ? { timeoutMs: provider.timeoutMs } : {}),
     };
 
     const res = await fetchWithAuth(
@@ -3151,6 +3154,28 @@ export const api = {
       body: JSON.stringify(updates),
     });
     if (!res.ok) throw new Error('Failed to update background exploration settings');
+    return res.json();
+  },
+
+  // ─── Timeout Settings ───────────────────────────────────────────
+
+  /** Fetch current timeout settings. */
+  getTimeoutConfig: async (): Promise<{ defaultSeconds: number }> => {
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/config/timeout`);
+    if (!res.ok) throw new Error('Failed to fetch timeout settings');
+    return res.json();
+  },
+
+  /** Patch timeout settings. */
+  patchTimeoutConfig: async (updates: {
+    defaultSeconds?: number;
+  }): Promise<{ defaultSeconds: number }> => {
+    const res = await fetchWithAuth(`${API_BASE}/v0/management/config/timeout`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error('Failed to update timeout settings');
     return res.json();
   },
 };

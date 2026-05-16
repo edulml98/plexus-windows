@@ -34,6 +34,7 @@ export const providers = sqliteTable(
     gpuFlopsTflop: real('gpu_flops_tflop'), // FLOPS in TFLOP
     gpuPowerDrawWatts: integer('gpu_power_draw_watts'), // Power draw in watts
     adapter: text('adapter'), // JSON: string[] — provider-level adapter names
+    timeoutMs: integer('timeout_ms'), // Per-provider upstream request timeout in ms (NULL = use global default)
     createdAt: integer('created_at').notNull(),
     updatedAt: integer('updated_at').notNull(),
   },

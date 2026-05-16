@@ -19,6 +19,7 @@ import type {
   FailoverPolicy,
   CooldownPolicy,
   BackgroundExplorationConfig,
+  TimeoutConfig,
   MetadataOverrides,
 } from '../config';
 import { resolveGpuParams } from '@plexus/shared';
@@ -311,6 +312,7 @@ export class ConfigRepository {
         config.adapter && (Array.isArray(config.adapter) ? config.adapter.length > 0 : true)
           ? toJson(Array.isArray(config.adapter) ? config.adapter : [config.adapter])
           : null,
+      timeoutMs: config.timeoutMs ?? null,
       updatedAt: timestamp,
     };
 
@@ -530,6 +532,7 @@ export class ConfigRepository {
           gpu_power_draw_watts: row.gpuPowerDrawWatts!,
         };
       })(),
+      ...(row.timeoutMs != null ? { timeoutMs: row.timeoutMs } : {}),
     };
 
     return result as ProviderConfig;
@@ -1224,6 +1227,11 @@ export class ConfigRepository {
       2
     );
     return { enabled, stalenessThresholdSeconds, workerConcurrency };
+  }
+
+  async getTimeoutConfig(): Promise<TimeoutConfig> {
+    const defaultSeconds = await this.getSetting<number>('timeout.defaultSeconds', 300);
+    return { defaultSeconds };
   }
 
   // ─── OAuth Credentials ──────────────────────────────────────────

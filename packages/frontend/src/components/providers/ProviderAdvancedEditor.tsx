@@ -153,6 +153,46 @@ export function ProviderAdvancedEditor({
             </div>
           </div>
 
+          {/* Timeout Override */}
+          <div className="border border-border-glass rounded-md p-3 bg-bg-subtle">
+            <div className="flex flex-col gap-1">
+              <label className="font-body text-[13px] font-medium text-text">
+                Upstream Timeout (seconds)
+              </label>
+              <div
+                className="font-body text-[11px] text-text-secondary"
+                style={{ lineHeight: 1.35, marginBottom: '4px' }}
+              >
+                Override the global default timeout for this provider. Leave empty to use the global
+                default. Must be between 1 and 3600.
+              </div>
+              <input
+                className="w-full max-w-[200px] py-2 pl-3 pr-7 font-body text-sm text-text bg-bg-glass border border-border-glass rounded-sm outline-none focus:border-primary"
+                type="number"
+                step="1"
+                min="1"
+                max="3600"
+                placeholder="Global default"
+                value={
+                  editingProvider.timeoutMs != null
+                    ? Math.round(editingProvider.timeoutMs / 1000)
+                    : ''
+                }
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setEditingProvider({ ...editingProvider, timeoutMs: undefined });
+                  } else {
+                    const seconds = Number(raw);
+                    if (Number.isFinite(seconds) && seconds >= 1 && seconds <= 3600) {
+                      setEditingProvider({ ...editingProvider, timeoutMs: seconds * 1000 });
+                    }
+                  }
+                }}
+              />
+            </div>
+          </div>
+
           {/* Custom Headers */}
           <div className="border border-border-glass rounded-md overflow-hidden">
             <div

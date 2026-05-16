@@ -30,7 +30,12 @@ import { useEffect, useMemo, useState } from 'react';
  */
 import { PieChart as PieChartIcon, BarChart3 } from 'lucide-react';
 import { api, UsageData, PieChartDataPoint, type ConcurrencyData } from '../../../lib/api';
-import { formatNumber, formatTokens, formatTimeLabel, formatDateTimeLabel } from '../../../lib/format';
+import {
+  formatNumber,
+  formatTokens,
+  formatTimeLabel,
+  formatDateTimeLabel,
+} from '../../../lib/format';
 import { Card } from '../../ui/Card';
 import { TotalEnergyComparison } from '../../TotalEnergyComparison';
 import { TimeRangeSelector } from '../TimeRangeSelector';
@@ -372,9 +377,7 @@ export const UsageTab: React.FC<UsageTabProps> = ({
       return null;
     };
 
-    const sortedData = [...data].sort(
-      (a, b) => (b[dataKey] as number) - (a[dataKey] as number)
-    );
+    const sortedData = [...data].sort((a, b) => (b[dataKey] as number) - (a[dataKey] as number));
 
     const toggleBtnStyle = (active: boolean): React.CSSProperties => ({
       padding: '4px 6px',
@@ -484,7 +487,11 @@ export const UsageTab: React.FC<UsageTabProps> = ({
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-glass)" />
-                <XAxis dataKey="timestamp" stroke="var(--color-text-secondary)" tickFormatter={(v) => formatTimeLabel(String(v))} />
+                <XAxis
+                  dataKey="timestamp"
+                  stroke="var(--color-text-secondary)"
+                  tickFormatter={(v) => formatTimeLabel(String(v))}
+                />
                 <YAxis stroke="var(--color-text-secondary)" tickFormatter={formatNumber} />
                 <Tooltip
                   contentStyle={{
@@ -629,7 +636,11 @@ export const UsageTab: React.FC<UsageTabProps> = ({
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={data}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border-glass)" />
-                <XAxis dataKey="timestamp" stroke="var(--color-text-secondary)" tickFormatter={(v) => formatTimeLabel(String(v))} />
+                <XAxis
+                  dataKey="timestamp"
+                  stroke="var(--color-text-secondary)"
+                  tickFormatter={(v) => formatTimeLabel(String(v))}
+                />
                 <YAxis stroke="var(--color-text-secondary)" tickFormatter={formatTokens} />
                 <Tooltip
                   contentStyle={{
@@ -686,9 +697,17 @@ export const UsageTab: React.FC<UsageTabProps> = ({
           </div>
         </Card>
 
-        <ChartToggleCard title="Usage by Model Alias (Requests)" dataKey="requests" data={modelData} />
+        <ChartToggleCard
+          title="Usage by Model Alias (Requests)"
+          dataKey="requests"
+          data={modelData}
+        />
         <ChartToggleCard title="Usage by Model Alias (Tokens)" dataKey="tokens" data={modelData} />
-        <ChartToggleCard title="Usage by Provider (Requests)" dataKey="requests" data={providerData} />
+        <ChartToggleCard
+          title="Usage by Provider (Requests)"
+          dataKey="requests"
+          data={providerData}
+        />
         <ChartToggleCard title="Usage by Provider (Tokens)" dataKey="tokens" data={providerData} />
         <ChartToggleCard title="Usage by API Key (Requests)" dataKey="requests" data={keyData} />
         <ChartToggleCard title="Usage by API Key (Tokens)" dataKey="tokens" data={keyData} />

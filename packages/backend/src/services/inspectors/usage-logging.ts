@@ -229,7 +229,14 @@ export class UsageInspector extends PassThrough {
     }
 
     const isTimeout = err?.name === 'TimeoutError' || err?.message?.includes('timeout');
-    const status = isTimeout ? 'timeout' : 'cancelled';
+    // If onDisconnect() already set the status to 'timeout' (e.g. when the abort
+    // signal carried a TimeoutError), don't overwrite it with 'cancelled'.
+    const status =
+      this.usageRecord.responseStatus === 'timeout' && !isTimeout
+        ? 'timeout'
+        : isTimeout
+          ? 'timeout'
+          : 'cancelled';
 
     logger.info(
       `UsageInspector: stream destroyed for ${this.usageRecord.requestId} ` +
@@ -255,10 +262,7 @@ export class UsageInspector extends PassThrough {
       }
 
       this.usageStorage.saveRequest(this.usageRecord as UsageRecord).catch((saveErr) => {
-        logger.error(
-          `Failed to save ${status} usage for ${this.usageRecord.requestId}:`,
-          saveErr
-        );
+        logger.error(`Failed to save ${status} usage for ${this.usageRecord.requestId}:`, saveErr);
       });
 
       debugManager.flush(this.usageRecord.requestId!);
