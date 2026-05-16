@@ -24,6 +24,7 @@ Plexus sits in front of your LLM providers and handles protocol translation, loa
 - **Model aliasing & load balancing** — Define virtual model names backed by multiple real providers with `random`, `cost`, `performance`, `latency`, or `in_order` selectors
 - **Vision fallthrough** — Automatically convert images to text descriptions for models that don't natively support vision, ensuring compatibility across all providers
 - **Intelligent failover** — Exponential backoff cooldowns automatically remove unhealthy providers from rotation
+- **Stream safety controls** — Detect client disconnects, enforce upstream timeouts, and catch provider stalls so stuck streams don't burn quota forever
 - **Usage tracking** — Per-request cost, token counts, latency, and TPS metrics with a built-in dashboard
 - **MCP proxy** — Proxy Model Context Protocol servers through Plexus with per-request session isolation
 - **User quotas** — Per-API-key rate limiting by requests or tokens with rolling, daily, or weekly windows, along with cost restriction.
@@ -196,7 +197,15 @@ Limit how much each API key can consume using rolling, daily, or weekly windows:
 
 When a provider fails, Plexus removes it from rotation using exponential backoff: 2 min → 4 min → 8 min → ... → 5 hr cap. Successful requests reset the counter. Set disable cooldown: true on a provider to opt it out entirely.
 
-→ See [Configuration: cooldown](docs/CONFIGURATION.md#cooldown-optional)
+→ See [Configuration: cooldown](docs/CONFIGURATION.md#cooldowns)
+
+### Stream Cancellation & Provider Stall Protection
+
+- Client disconnects now cancel the upstream provider request, reducing wasted tokens/quota on abandoned streams.
+- Global and per-provider upstream timeouts cut off requests that run too long.
+- Optional stall detection can fail over slow-to-start providers before bytes reach the client, and can abort streams that become too slow mid-flight.
+
+→ See [Configuration: Request Timeouts](docs/CONFIGURATION.md#request-timeouts) and [Configuration: Stall Detection](docs/CONFIGURATION.md#stall-detection)
 
 ### MCP Proxy
 

@@ -194,3 +194,57 @@ properties:
 
       Pass-through optimisation is automatically disabled when any adapter
       is active.
+  timeoutMs:
+    type: integer
+    minimum: 1
+    description: >
+      Optional per-provider upstream request timeout in milliseconds.
+      When omitted, Plexus uses the global timeout from
+      `/v0/management/config/timeout`.
+  stallTtfbMs:
+    type:
+      - integer
+      - 'null'
+    minimum: 5000
+    maximum: 120000
+    description: >
+      Optional per-provider TTFB stall timeout override in milliseconds.
+      Omit to inherit the global value. `null` disables TTFB stall detection
+      for this provider.
+  stallTtfbBytes:
+    type:
+      - integer
+      - 'null'
+    minimum: 50
+    maximum: 10000
+    description: >
+      Optional per-provider byte threshold used to confirm meaningful first
+      output for stall detection. Omit to inherit the global value.
+  stallMinBps:
+    type:
+      - integer
+      - 'null'
+    minimum: 50
+    maximum: 5000
+    description: >
+      Optional per-provider minimum throughput override in bytes per second.
+      Omit to inherit the global value. `null` disables throughput stall
+      detection for this provider.
+  stallWindowMs:
+    type:
+      - integer
+      - 'null'
+    minimum: 3000
+    maximum: 30000
+    description: >
+      Optional per-provider sliding-window width for throughput stall
+      detection, in milliseconds. Omit to inherit the global value.
+  stallGracePeriodMs:
+    type:
+      - integer
+      - 'null'
+    minimum: 0
+    maximum: 120000
+    description: >
+      Optional per-provider grace period before throughput stall detection
+      starts, in milliseconds. Omit to inherit the global value.

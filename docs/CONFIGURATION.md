@@ -90,7 +90,9 @@ A **provider** represents an upstream AI service that Plexus routes requests to.
 | **Enabled** | Whether this provider is active for routing | No (default: true) |
 | **Headers** | Custom HTTP headers sent with every request | No |
 | **Extra Body** | Additional fields merged into every request | No |
+| **Upstream Timeout** | Per-provider request timeout override in milliseconds. If unset, the global timeout is used. | No |
 | **Disable Cooldown** | Exclude from automatic cooldown on errors | No |
+| **Stall Detection Overrides** | Optional per-provider overrides for TTFB/throughput stall detection. Empty = inherit global setting for that field. | No |
 | **Adapters** | Request/response rewrite hooks applied to every model under this provider (see [Provider Adapters](#provider-adapters)) | No |
 
 ### Multi-Protocol Providers
@@ -184,6 +186,34 @@ Quota checkers monitor upstream provider rate limits and prevent routing to exha
 - `maxUtilizationPercent`: Treat provider as exhausted when any window reaches this % (default 99)
 
 Quota data is available via the Management API — see [API Reference: Quota Management](/docs/openapi/openapi.yaml#/paths/~1v0~1management~1quotas).
+
+### Provider Timeout Overrides
+
+Each provider can optionally set `timeoutMs` to override the global upstream timeout for requests routed to that provider.
+
+- **Unset / omitted**: inherit the global timeout
+- **Set to a number**: use that provider-specific timeout instead
+- **Valid range**: any positive integer millisecond value in provider config; the Admin UI exposes this as **1–3600 seconds**
+
+Use provider overrides when one backend is predictably slower or faster than the rest. For example, you might keep a **300s** global timeout but set a **30s** timeout on a fast inference endpoint so stuck requests fail over much sooner.
+
+### Provider Stall Detection Overrides
+
+Each provider can optionally override any of the global stall detection settings with these fields:
+
+- `stallTtfbMs` — per-provider TTFB timeout override
+- `stallTtfbBytes` — per-provider TTFB byte threshold override
+- `stallMinBps` — per-provider minimum throughput override
+- `stallWindowMs` — per-provider sliding-window width override
+- `stallGracePeriodMs` — per-provider grace period override
+
+**Important inheritance rules:**
+
+- If a field is **omitted**, the provider inherits the global setting for that field.
+- For the nullable threshold fields (`stallTtfbMs`, `stallMinBps`), setting the value to **`null`** disables that stall dimension for the provider.
+- For the non-null tuning fields (`stallTtfbBytes`, `stallWindowMs`, `stallGracePeriodMs`), `null`/empty in practice means “use the inherited global value”.
+
+This lets you keep one global policy while tightening or relaxing stall protection for known outliers.
 
 ---
 
@@ -432,6 +462,176 @@ Set `disable_cooldown: true` on a provider to exclude it from the cooldown syste
 - `DELETE /v0/management/cooldowns/:provider?model=:model` — clear specific
 
 See [API Reference: Cooldown Management](/docs/openapi/openapi.yaml#/paths/~1v0~1management~1cooldowns).
+
+---
+
+## Request Timeouts
+
+Plexus can abort upstream requests that run too long instead of waiting forever.
+
+Timeouts matter for both reliability and cost:
+
+- they stop abandoned or hung upstream requests from continuing to burn quota,
+- they allow the dispatcher to fail over to another provider when appropriate,
+- and they put a hard cap on runaway or extremely slow streams.
+
+### Default Behavior
+
+- **Global default timeout**: `300` seconds
+- **Per-provider override**: optional via `timeoutMs`
+- **Effective timeout**: `provider.timeoutMs ?? (global timeout.defaultSeconds × 1000)`
+
+If the timeout fires before the request completes:
+
+- Plexus aborts the upstream fetch,
+- the request is recorded with `responseStatus = "timeout"`,
+- and failover may continue to the next provider when the dispatcher is still in a retryable/failover-safe stage.
+
+### Global Timeout Configuration
+
+Global timeout settings live in system settings and are exposed through the Admin UI **Config → Timeout Settings** and the management API.
+
+| Field | Type | Default | Range | Meaning |
+|------|------|---------|-------|---------|
+| `defaultSeconds` | integer | `300` | `1–3600` | Default maximum duration for any upstream request unless the selected provider overrides it |
+
+### Per-Provider Timeout Configuration
+
+| Field | Type | Default | Meaning |
+|------|------|---------|---------|
+| `timeoutMs` | integer (milliseconds) | inherit global | Override the global timeout for requests routed to this provider |
+
+### Management API
+
+- `GET /v0/management/config/timeout` — returns the effective global timeout config
+- `PATCH /v0/management/config/timeout` — partial update of timeout settings
+
+Example:
+
+```json
+PATCH /v0/management/config/timeout
+{
+  "defaultSeconds": 120
+}
+```
+
+### Tuning Guidance
+
+- Start with the default `300s` if you are unsure.
+- Lower it for providers that should either respond quickly or fail fast.
+- Raise it only for providers that legitimately need long-running responses.
+- Prefer a provider-specific override over increasing the global timeout for everyone.
+
+---
+
+## Stall Detection
+
+Stall detection protects against providers that are technically connected but behaving too slowly to be useful.
+
+Unlike a plain timeout, stall detection can distinguish between:
+
+- a provider that **never starts producing meaningful bytes** (TTFB stall), and
+- a provider that **starts streaming but then slows below an acceptable throughput floor** (throughput stall).
+
+By default, stall detection is effectively **off** because both threshold dimensions are disabled:
+
+- `ttfbSeconds = null`
+- `minBytesPerSecond = null`
+
+The supporting tuning values still have defaults even when detection is disabled:
+
+- `ttfbBytes = 100`
+- `windowSeconds = 10`
+- `gracePeriodSeconds = 30`
+
+### Two Stall Dimensions
+
+#### 1. TTFB Stall Detection
+
+TTFB (time-to-first-bytes) detection checks whether the provider produces **enough bytes** quickly enough.
+
+It uses two values together:
+
+- `ttfbSeconds` — how long Plexus waits
+- `ttfbBytes` — how many bytes must arrive within that time to count as meaningful output
+
+If the threshold is not met in time, Plexus treats the provider as stalled and aborts that attempt.
+
+**Important:** when this happens before any response bytes reach the client, the dispatcher can transparently fail over to another provider.
+
+#### 2. Throughput Stall Detection
+
+Throughput detection applies **after** the provider has started responding.
+
+It uses:
+
+- `minBytesPerSecond` — minimum acceptable streaming rate
+- `windowSeconds` — sliding window width for measuring throughput
+- `gracePeriodSeconds` — delay after TTFB success before throughput enforcement starts
+
+The grace period is especially important for reasoning-heavy models that may pause naturally after their first chunk.
+
+If throughput drops below the configured floor, Plexus aborts the stream and records the request as `stall`.
+
+**Important:** once bytes have already been sent to the client, Plexus cannot transparently fail over the same response stream. The client must retry.
+
+### Global Stall Settings
+
+Global stall settings live in the Admin UI under **Config → Stall Detection** and in the management API.
+
+| Field | Type | Default | Range | Meaning |
+|------|------|---------|-------|---------|
+| `ttfbSeconds` | integer or `null` | `null` | `5–120` or `null` | Max time to wait for the first meaningful bytes. `null` disables TTFB stall detection. |
+| `ttfbBytes` | integer | `100` | `50–10000` | Byte threshold that must arrive within `ttfbSeconds` to count as “started”. |
+| `minBytesPerSecond` | integer or `null` | `null` | `50–5000` or `null` | Minimum acceptable streaming throughput. `null` disables throughput stall detection. |
+| `windowSeconds` | integer | `10` | `3–30` | Sliding window width used to calculate throughput. |
+| `gracePeriodSeconds` | integer | `30` | `0–120` | Delay after TTFB success before throughput enforcement starts. |
+
+### Effective Behavior and Inheritance
+
+- Stall detection is **enabled** for a request if either `ttfbSeconds` or `minBytesPerSecond` is active after global + provider override resolution.
+- Provider overrides take precedence over global settings.
+- Per-provider overrides can enable stall detection even if the global stall config is disabled.
+- Leaving provider fields empty keeps the global value for that field.
+
+### Management API
+
+- `GET /v0/management/config/stall` — returns the current global stall detection config
+- `PATCH /v0/management/config/stall` — partial update of stall settings
+
+Example:
+
+```json
+PATCH /v0/management/config/stall
+{
+  "ttfbSeconds": 15,
+  "ttfbBytes": 100,
+  "minBytesPerSecond": 500,
+  "windowSeconds": 10,
+  "gracePeriodSeconds": 30
+}
+```
+
+Disable one dimension while keeping the other:
+
+```json
+PATCH /v0/management/config/stall
+{
+  "ttfbSeconds": null,
+  "minBytesPerSecond": 400
+}
+```
+
+### Recommended Starting Points
+
+- **Fail over slow starters only**: set `ttfbSeconds`, leave `minBytesPerSecond` as `null`
+- **Protect long streams too**: set both `ttfbSeconds` and `minBytesPerSecond`
+- **Reasoning-heavy models**: keep a longer `gracePeriodSeconds`
+- **Bursty but healthy streams**: increase `windowSeconds` before raising `minBytesPerSecond`
+
+### Relationship to Client Disconnects
+
+Separate from timeout/stall settings, Plexus now also cancels upstream provider requests when the downstream client disconnects during streaming. This reduces wasted quota for abandoned requests even when neither timeouts nor stall detection are enabled.
 
 ---
 
