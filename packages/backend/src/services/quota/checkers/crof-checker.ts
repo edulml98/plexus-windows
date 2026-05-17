@@ -10,6 +10,7 @@ interface CrofUsageResponse {
 export default defineChecker({
   type: 'crof',
   displayName: 'Crof',
+  primaryMeterKey: 'daily_requests',
   optionsSchema: z.object({
     endpoint: z.string().url().optional(),
   }),
