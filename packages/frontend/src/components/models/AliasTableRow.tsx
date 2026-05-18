@@ -56,11 +56,6 @@ export const AliasTableRow: React.FC<AliasTableRowProps> = ({
             {alias.id}
           </div>
           <div className="flex items-center gap-1">
-            {alias.metadata && (
-              <span className="inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium border border-border-glass text-primary capitalize">
-                {alias.metadata.source}
-              </span>
-            )}
             <CopyButton value={alias.id} size="sm" />
             <button
               onClick={() => onDelete(alias)}
@@ -71,6 +66,12 @@ export const AliasTableRow: React.FC<AliasTableRowProps> = ({
             </button>
           </div>
         </div>
+        {alias.metadata && (
+          <div className="pl-5 mt-0.5 text-[10px]">
+            <span className="text-text-muted">Metadata: </span>
+            <span className="text-primary capitalize">{alias.metadata.source}</span>
+          </div>
+        )}
         {alias.aliases && alias.aliases.length > 0 && (
           <div className="flex flex-col gap-1 mt-1.5 pl-5">
             {alias.aliases.map((a) => (
