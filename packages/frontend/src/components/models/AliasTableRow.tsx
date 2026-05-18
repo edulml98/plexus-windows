@@ -5,6 +5,16 @@ import { Switch } from '../ui/Switch';
 import { Alias, Provider, Cooldown } from '../../lib/api';
 import { formatMsToMinSec } from '@plexus/shared';
 
+const SELECTOR_LABELS: Record<string, string> = {
+  random: 'Random',
+  in_order: 'In Order',
+  cost: 'Lowest Cost',
+  latency: 'Lowest Latency',
+  usage: 'Least Used',
+  performance: 'Performance',
+  e2e_performance: 'E2E Performance',
+};
+
 interface AliasTableRowProps {
   alias: Alias;
   providers: Provider[];
@@ -115,7 +125,7 @@ export const AliasTableRow: React.FC<AliasTableRowProps> = ({
                 <span className="opacity-40">{groupIdx + 1}.</span>
                 <span>{group.name}</span>
                 <span className="opacity-50">·</span>
-                <span className="capitalize">{group.selector}</span>
+                <span>{SELECTOR_LABELS[group.selector] ?? group.selector}</span>
                 <CopyButton
                   value={`direct/${alias.id}/${group.name}`}
                   size="sm"
