@@ -502,7 +502,10 @@ export class Dispatcher {
           addTimeoutSource(route.config.timeoutMs);
         }
 
-        // Wire per-provider stall detection overrides if set.
+        // Wire per-provider stall detection overrides. Always call addStallConfig
+        // so the StallInspector is reset on each failover iteration — even when
+        // the current provider has no overrides, this clears a previous provider's
+        // overrides from the inspector.
         if (addStallConfig) {
           const providerStallOverrides: Parameters<typeof addStallConfig>[0] = {};
           if (route.config.stallTtfbMs !== undefined)
@@ -519,9 +522,7 @@ export class Dispatcher {
             `Dispatcher: provider stall overrides for ${route.provider}: ${JSON.stringify(providerStallOverrides)}, ` +
               `route.config stall fields: stallTtfbMs=${route.config.stallTtfbMs}, stallMinBps=${route.config.stallMinBps}`
           );
-          if (Object.keys(providerStallOverrides).length > 0) {
-            addStallConfig(providerStallOverrides);
-          }
+          addStallConfig(providerStallOverrides);
         }
 
         const incomingApi = currentRequest.incomingApiType || 'unknown';
