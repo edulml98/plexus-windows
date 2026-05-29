@@ -18,6 +18,7 @@
  *   PLEXUS_STAGING_IMAGE_RETAIN     Number of staging images to keep on host (default: 3)
  *   PLEXUS_STAGING_BACKUP_DIR       Local directory for backup files (default: ".staging-backups")
  *   PLEXUS_STAGING_HEALTH_TIMEOUT   Seconds to wait for health check (default: 60)
+ *   PLEXUS_TARGETPLATFORM           Docker target platform (default: "linux/amd64")
  */
 
 import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs';
@@ -48,6 +49,7 @@ const BACKUP_RETAIN = parseInt(optionalEnv('PLEXUS_STAGING_BACKUP_RETAIN', '3'),
 const IMAGE_RETAIN = parseInt(optionalEnv('PLEXUS_STAGING_IMAGE_RETAIN', '3'), 10);
 const BACKUP_DIR = optionalEnv('PLEXUS_STAGING_BACKUP_DIR', '.staging-backups');
 const HEALTH_TIMEOUT = parseInt(optionalEnv('PLEXUS_STAGING_HEALTH_TIMEOUT', '60'), 10);
+const TARGETPLATFORM = optionalEnv('PLEXUS_TARGETPLATFORM', 'linux/amd64');
 
 function resolveContainerName(): string {
   const envName = process.env.PLEXUS_STAGING_CONTAINER_NAME;
@@ -183,6 +185,7 @@ console.log(`  Staging URL:     ${STAGING_URL}`);
 console.log(
   `  Container:       ${CONTAINER_NAME}${process.env.PLEXUS_STAGING_CONTAINER_NAME ? '' : ' (auto-detected)'}`
 );
+console.log(`  Target platform: ${TARGETPLATFORM}`);
 console.log(`  New image tag:   ${NEW_TAG}`);
 console.log();
 
@@ -322,10 +325,24 @@ if (inspectResult.success && inspectResult.stdout) {
 step(3, 'Build on staging host');
 
 console.log(`  Building ${NEW_TAG} on context "${CTX}"...`);
-docker(['build', '--build-arg', `APP_VERSION=${TIMESTAMP}`, '-t', NEW_TAG, '-t', LATEST_TAG, '.'], {
-  fatal: true,
-  stream: true,
-});
+docker(
+  [
+    'build',
+    '--build-arg',
+    `APP_VERSION=${TIMESTAMP}`,
+    '--build-arg',
+    `TARGETPLATFORM=${TARGETPLATFORM}`,
+    '-t',
+    NEW_TAG,
+    '-t',
+    LATEST_TAG,
+    '.',
+  ],
+  {
+    fatal: true,
+    stream: true,
+  }
+);
 console.log(`  ✓ Built ${NEW_TAG}`);
 
 // ---------------------------------------------------------------------------
