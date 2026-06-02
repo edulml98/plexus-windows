@@ -1,6 +1,6 @@
 {
-  "id": "882bdc14-7dfd-4885-8b89-e2c98940522d",
-  "prevId": "c922c2c7-46bb-4d36-8dd3-20d4e20ec9b1",
+  "id": "724cb7c3-e7bb-4e86-877b-44d1d6d6b882",
+  "prevId": "882bdc14-7dfd-4885-8b89-e2c98940522d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -195,6 +195,12 @@
         },
         "excluded_providers": {
           "name": "excluded_providers",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "allowed_ips": {
+          "name": "allowed_ips",
           "type": "text",
           "primaryKey": false,
           "notNull": false
