@@ -61,6 +61,7 @@ function stripAddrDecorations(input: string): string {
   return s;
 }
 
+/** Convert a dotted-quad IPv4 string to a 32-bit integer, or null if malformed. */
 function ipv4ToBigInt(addr: string): bigint | null {
   const parts = addr.split('.');
   if (parts.length !== 4) return null;
@@ -74,6 +75,7 @@ function ipv4ToBigInt(addr: string): bigint | null {
   return value;
 }
 
+/** Convert an IPv6 string (incl. "::" and embedded IPv4) to a 128-bit integer, or null. */
 function ipv6ToBigInt(addr: string): bigint | null {
   let s = addr;
 

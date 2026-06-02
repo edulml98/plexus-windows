@@ -112,4 +112,18 @@ describe('getTrustedClientIp', () => {
     const req = createMockRequest({}, '127.0.0.1');
     expect(getTrustedClientIp(req, ['0.0.0.0/0'])).toBe('127.0.0.1');
   });
+
+  test('walks X-Forwarded-For right-to-left, returning the first untrusted hop', () => {
+    // A trusted proxy (loopback) appended the real client after a spoofed prefix.
+    const req = createMockRequest({ 'x-forwarded-for': '10.0.0.5, 8.8.8.8' }, '127.0.0.1');
+    expect(getTrustedClientIp(req, ['127.0.0.0/8'])).toBe('8.8.8.8');
+  });
+
+  test('skips trusted hops while walking the chain', () => {
+    const req = createMockRequest(
+      { 'x-forwarded-for': '8.8.8.8, 10.0.0.1, 10.0.0.2' },
+      '127.0.0.1'
+    );
+    expect(getTrustedClientIp(req, ['127.0.0.0/8', '10.0.0.0/8'])).toBe('8.8.8.8');
+  });
 });

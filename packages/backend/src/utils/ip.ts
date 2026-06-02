@@ -57,18 +57,22 @@ export function getClientIp(request: FastifyRequest): string | null {
 /**
  * getTrustedClientIp
  *
- * Trust-aware client IP resolution. Forwarding headers (X-Forwarded-For,
- * CF-Connecting-IP, …) are only honored when the request's immediate peer is a
- * configured trusted proxy; otherwise the peer address itself is treated as the
- * client. This keeps IP allowlists authoritative even though forwarding headers
- * can be spoofed by a direct caller.
+ * Trust-aware client IP resolution used for security decisions (IP allowlists).
+ * Forwarding headers are spoofable, so they are only believed when the request's
+ * immediate peer is a configured trusted proxy.
+ *
+ * When the peer is trusted, the client is resolved from X-Forwarded-For by
+ * walking the chain right-to-left and skipping hops that are themselves trusted
+ * proxies; the first untrusted address is the real client. This defeats a
+ * spoofed/prepended X-Forwarded-For entry that a left-to-right reader (the
+ * generic getClientIp picker) would otherwise trust.
  *
  * `trustedProxies` semantics (distinct from per-key allowlists, where empty
  * means "no restriction"):
- *   - undefined        → not configured ⇒ trust all peers (legacy behavior)
- *   - contains 0.0.0.0/0 (the UI default) ⇒ trust all peers
+ *   - undefined        → not configured ⇒ trust all headers (legacy getClientIp)
+ *   - contains 0.0.0.0/0 (the UI default) ⇒ every hop is trusted
  *   - []               → trust no peers ⇒ forwarding headers are ignored
- *   - specific entries → only peers matching them are trusted
+ *   - specific entries → only peers/hops matching them are trusted
  */
 export function getTrustedClientIp(
   request: FastifyRequest,
@@ -80,12 +84,29 @@ export function getTrustedClientIp(
   const rules = trustedProxies.map((r) => r.trim()).filter(Boolean);
   const peer = request.ip || request.socket?.remoteAddress || null;
 
-  // No trusted proxies → never believe forwarding headers; the peer is the client.
+  // No trusted proxies configured → never believe forwarding headers.
   if (rules.length === 0) return peer;
 
-  // Immediate peer is a trusted proxy → believe the forwarded client IP.
-  if (isIpAllowed(peer, rules)) return getClientIp(request);
+  // The immediate peer must itself be a trusted proxy; otherwise it is talking
+  // to us directly and IS the client (its forwarding headers are not trusted).
+  if (!isIpAllowed(peer, rules)) return peer;
 
-  // Untrusted direct connection → the peer is the real client.
+  // Trusted peer: walk X-Forwarded-For right-to-left, skipping trusted hops.
+  // The first untrusted address is the real client.
+  const forwarded = request.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim().length > 0) {
+    const chain = forwarded
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+    for (let i = chain.length - 1; i >= 0; i--) {
+      const hop = chain[i]!;
+      if (!isIpAllowed(hop, rules)) return hop;
+    }
+    // Every hop is a trusted proxy → fall back to the left-most claimed address.
+    if (chain.length > 0) return chain[0]!;
+  }
+
+  // No X-Forwarded-For from the trusted proxy → the peer is the best we have.
   return peer;
 }

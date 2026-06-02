@@ -786,4 +786,17 @@ describe('Trusted Proxy Header Handling', () => {
     const res = await inject('10.1.2.3');
     expect(res.statusCode).toBe(200);
   });
+
+  it('ignores a spoofed prepended X-Forwarded-For entry (walks right-to-left)', async () => {
+    configure(['127.0.0.0/8']); // loopback peer is a trusted proxy
+    // Attacker prepends an allowed IP; the trusted proxy appended the real client.
+    const res = await inject('10.0.0.5, 8.8.8.8');
+    expect(res.statusCode).toBe(401); // real client 8.8.8.8 is not in 10.0.0.0/8
+  });
+
+  it('resolves the right-most real client behind a trusted proxy', async () => {
+    configure(['127.0.0.0/8']);
+    const res = await inject('8.8.8.8, 10.0.0.5'); // real client 10.0.0.5 is allowed
+    expect(res.statusCode).toBe(200);
+  });
 });
