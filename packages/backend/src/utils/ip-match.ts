@@ -128,12 +128,16 @@ function mappedIpv4Value(addr: string): bigint | null {
 }
 
 /**
- * Parse an IP address (v4 or v6) into a family-tagged integer, or null if it
- * isn't a well-formed address. IPv4-mapped IPv6 collapses to family 4.
+ * Parse a bare IP address (v4 or v6) into a family-tagged integer, or null if
+ * it isn't well-formed. Strict by design: surrounding brackets, a zone id, or a
+ * trailing :port are rejected — this keeps persisted rules (allowedIps /
+ * trustedProxies) from being silently widened. IPv4-mapped IPv6 (::ffff:a.b.c.d)
+ * is accepted and collapses to family 4. For observed client/peer IPs that may
+ * carry such decorations, use normalizeClientIp() instead.
  */
 export function ipToBigInt(input: string | null | undefined): ParsedIp | null {
   if (!input) return null;
-  const s = stripAddrDecorations(input);
+  const s = input.trim();
   if (s.length === 0) return null;
 
   if (s.includes(':')) {
@@ -145,6 +149,17 @@ export function ipToBigInt(input: string | null | undefined): ParsedIp | null {
 
   const v = ipv4ToBigInt(s);
   return v === null ? null : { family: 4, value: v };
+}
+
+/**
+ * Parse an observed client/peer IP, tolerating brackets, a zone id, and a
+ * trailing :port (forms that sockets and reverse proxies can produce). Use this
+ * for runtime IPs only — never for persisted allowlist rules, which must stay
+ * strict (see ipToBigInt).
+ */
+export function normalizeClientIp(input: string | null | undefined): ParsedIp | null {
+  if (!input) return null;
+  return ipToBigInt(stripAddrDecorations(input));
 }
 
 /**
@@ -219,7 +234,7 @@ export function isIpAllowed(clientIp: string | null | undefined, allowlist?: str
   if (rules.length === 0) return true; // no restriction
   if (rules.includes('0.0.0.0/0')) return true; // canonical allow-all default
 
-  const client = ipToBigInt(clientIp);
+  const client = normalizeClientIp(clientIp);
   if (!client) return false; // fail-closed: restricted key, unknown client IP
 
   for (const rule of rules) {

@@ -3162,7 +3162,9 @@ export const api = {
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || 'Failed to update trusted proxies');
+      const detail =
+        Array.isArray(err.details) && err.details[0]?.message ? `: ${err.details[0].message}` : '';
+      throw new Error(`${err.error || 'Failed to update trusted proxies'}${detail}`);
     }
     return res.json();
   },

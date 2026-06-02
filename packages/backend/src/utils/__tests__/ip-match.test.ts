@@ -45,6 +45,17 @@ describe('isValidIpRule', () => {
     expect(isValidIpRule('not-an-ip')).toBe(false);
     expect(isValidIpRule('')).toBe(false);
   });
+
+  test('rejects decorated rule strings (ports, brackets, zone ids) so rules are not silently widened', () => {
+    expect(isValidIpRule('203.0.113.10:443')).toBe(false);
+    expect(isValidIpRule('192.168.1.10:443')).toBe(false);
+    expect(isValidIpRule('[2001:db8::1]:8443')).toBe(false);
+    expect(isValidIpRule('fe80::1%eth0')).toBe(false);
+    // ...but the same decorations remain tolerated on an observed client IP:
+    expect(isIpAllowed('203.0.113.10:443', ['203.0.113.0/24'])).toBe(true);
+    expect(isIpAllowed('[2001:db8::1]:8443', ['2001:db8::/32'])).toBe(true);
+    expect(isIpAllowed('fe80::1%eth0', ['fe80::1'])).toBe(true);
+  });
 });
 
 describe('isIpAllowed', () => {
