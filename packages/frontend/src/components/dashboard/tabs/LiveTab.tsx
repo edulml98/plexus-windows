@@ -1083,9 +1083,12 @@ export const LiveTab: React.FC<LiveTabProps> = ({
     );
   }, [liveRequests, streamFilter]);
 
-  /** Requests that resolved to a real provider (excludes synthetic labels like "Failed Request") */
+  /** Requests that resolved to a real provider (excludes synthetic labels like "Failed Request" and "Unresolved Provider") */
   const providerRequests = useMemo(
-    () => liveRequests.filter((r) => getProviderLabel(r) !== 'Failed Request'),
+    () => liveRequests.filter((r) => {
+      const label = getProviderLabel(r);
+      return label !== 'Failed Request' && label !== 'Unresolved Provider';
+    }),
     [liveRequests]
   );
 
