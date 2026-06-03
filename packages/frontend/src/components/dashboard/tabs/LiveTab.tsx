@@ -223,6 +223,12 @@ const MODEL_TIMELINE_COLORS = ['#3b82f6', '#14b8a6', '#8b5cf6', '#f59e0b', '#ef4
  */
 const PLACEHOLDER_LABELS = new Set(['unknown', 'n/a', 'na', 'none', 'null', 'undefined']);
 
+/**
+ * Synthetic provider labels returned by {@link getProviderLabel}.
+ * These are not real providers and should be excluded from provider-scoped aggregations.
+ */
+const EXCLUDED_PROVIDER_LABELS = ['Failed Request', 'Unresolved Provider'];
+
 //
 // LABEL NORMALISATION HELPERS
 //
@@ -1083,12 +1089,9 @@ export const LiveTab: React.FC<LiveTabProps> = ({
     );
   }, [liveRequests, streamFilter]);
 
-  /** Requests that resolved to a real provider (excludes synthetic labels like "Failed Request" and "Unresolved Provider") */
+  /** Requests that resolved to a real provider (excludes synthetic labels) */
   const providerRequests = useMemo(
-    () => liveRequests.filter((r) => {
-      const label = getProviderLabel(r);
-      return label !== 'Failed Request' && label !== 'Unresolved Provider';
-    }),
+    () => liveRequests.filter((r) => !EXCLUDED_PROVIDER_LABELS.includes(getProviderLabel(r))),
     [liveRequests]
   );
 
