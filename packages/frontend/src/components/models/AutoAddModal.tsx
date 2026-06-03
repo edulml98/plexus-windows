@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { Modal } from '../ui/Modal';
@@ -14,6 +14,25 @@ interface Props {
   preFillQuery?: string;
 }
 
+const getMatchingModels = (query: string, availableModels: Model[], providers: Provider[]) => {
+  const searchTerm = query.trim();
+  if (!searchTerm) return [];
+
+  const searchLower = searchTerm.toLowerCase();
+  const matches: Array<{ model: Model; provider: Provider }> = [];
+  availableModels.forEach((model) => {
+    const provider = providers.find((p) => p.id === model.providerId);
+    if (
+      provider &&
+      (model.name.toLowerCase().includes(searchLower) ||
+        provider.name.toLowerCase().includes(searchLower))
+    ) {
+      matches.push({ model, provider: { ...provider } });
+    }
+  });
+  return matches;
+};
+
 export function AutoAddModal({
   isOpen,
   onClose,
@@ -28,53 +47,28 @@ export function AutoAddModal({
     []
   );
   const [selectedModels, setSelectedModels] = useState<Set<string>>(new Set());
+  const wasOpenRef = useRef(false);
+  const availableModelsRef = useRef(availableModels);
+  const providersRef = useRef(providers);
+
+  availableModelsRef.current = availableModels;
+  providersRef.current = providers;
 
   useEffect(() => {
-    if (!isOpen) return;
+    const wasOpen = wasOpenRef.current;
+    wasOpenRef.current = isOpen;
+    if (!isOpen || wasOpen) return;
 
     setSubstring(preFillQuery);
     setSelectedModels(new Set());
-
-    const searchTerm = preFillQuery.trim();
-    if (!searchTerm) {
-      setFilteredModels([]);
-      return;
-    }
-
-    const searchLower = searchTerm.toLowerCase();
-    const matches: Array<{ model: Model; provider: Provider }> = [];
-    availableModels.forEach((model) => {
-      const provider = providers.find((p) => p.id === model.providerId);
-      if (
-        provider &&
-        (model.name.toLowerCase().includes(searchLower) ||
-          provider.name.toLowerCase().includes(searchLower))
-      ) {
-        matches.push({ model, provider: { ...provider } });
-      }
-    });
-    setFilteredModels(matches);
-  }, [availableModels, isOpen, preFillQuery, providers]);
+    setFilteredModels(
+      getMatchingModels(preFillQuery, availableModelsRef.current, providersRef.current)
+    );
+  }, [isOpen, preFillQuery]);
 
   const handleSearchModels = (query?: string) => {
     const searchTerm = query !== undefined ? query : substring;
-    if (!searchTerm.trim()) {
-      setFilteredModels([]);
-      return;
-    }
-    const searchLower = searchTerm.toLowerCase();
-    const matches: Array<{ model: Model; provider: Provider }> = [];
-    availableModels.forEach((model) => {
-      const provider = providers.find((p) => p.id === model.providerId);
-      if (
-        provider &&
-        (model.name.toLowerCase().includes(searchLower) ||
-          provider.name.toLowerCase().includes(searchLower))
-      ) {
-        matches.push({ model, provider: { ...provider } });
-      }
-    });
-    setFilteredModels(matches);
+    setFilteredModels(getMatchingModels(searchTerm, availableModels, providers));
   };
 
   const handleToggleModelSelection = (modelId: string, providerId: string) => {
