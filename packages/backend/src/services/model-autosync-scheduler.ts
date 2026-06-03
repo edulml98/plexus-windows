@@ -62,14 +62,16 @@ export class ModelAutosyncScheduler {
 
     for (const [providerId, config] of nextConfigs) {
       const existing = this.configs.get(providerId);
-      this.configs.set(providerId, config);
 
       if (!existing || existing.intervalMinutes !== config.intervalMinutes) {
         this.unschedule(providerId);
+        this.configs.set(providerId, config);
         this.schedule(config);
         this.runSyncNow(providerId).catch((error) => {
           logger.error(`Initial model autosync failed for provider '${providerId}': ${error}`);
         });
+      } else {
+        this.configs.set(providerId, config);
       }
     }
   }
