@@ -356,6 +356,10 @@ const aggregateByEntity = (
   requests.forEach((request) => {
     const key = entityType === 'provider' ? getProviderLabel(request) : getModelLabel(request);
 
+    if (entityType === 'provider' && key === 'Failed Request') {
+      return;
+    }
+
     const existing = grouped.get(key) || {
       requests: 0,
       errors: 0,
@@ -1411,6 +1415,9 @@ export const LiveTab: React.FC<LiveTabProps> = ({
 
     for (const request of liveRequests) {
       const provider = getProviderLabel(request);
+      if (provider === 'Failed Request') {
+        continue;
+      }
       const row = providers.get(provider) || {
         requests: 0,
         success: 0,
@@ -1463,6 +1470,9 @@ export const LiveTab: React.FC<LiveTabProps> = ({
     const rows = new Map<string, { requests: number; success: number }>();
     for (const request of liveRequests) {
       const provider = getProviderLabel(request);
+      if (provider === 'Failed Request') {
+        continue;
+      }
       const row = rows.get(provider) || { requests: 0, success: 0 };
       row.requests += 1;
       if ((request.responseStatus || '').toLowerCase() === 'success') {
