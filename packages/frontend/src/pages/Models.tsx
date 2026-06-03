@@ -48,8 +48,13 @@ export const Models = () => {
     orphanGroups,
     selectedImports,
     setSelectedImports,
+    selectedImportModels,
+    setSelectedImportModels,
+    selectedImportAliases,
+    setSelectedImportAliases,
     isImporting,
     handleOpenImport,
+    handleSuppressImportModel,
     handleSaveImports,
   } = useModels();
 
@@ -453,6 +458,11 @@ export const Models = () => {
           orphanGroups={orphanGroups}
           selectedImports={selectedImports}
           setSelectedImports={setSelectedImports}
+          selectedModels={selectedImportModels}
+          setSelectedModels={setSelectedImportModels}
+          selectedAliases={selectedImportAliases}
+          setSelectedAliases={setSelectedImportAliases}
+          onSuppress={handleSuppressImportModel}
           onImport={handleSaveImports}
           isImporting={isImporting}
         />
