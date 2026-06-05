@@ -734,6 +734,7 @@ async function* buildSSEGenerator(p: SSEGeneratorParams): AsyncGenerator<string>
   let hasEmittedClientFrame = false;
   let ttftMs: number | null = null;
   let lastMessage: AssistantMessage | null = null;
+  let transformedStreamSnapshot = '';
   let released = false;
 
   const doRelease = () => {
@@ -795,6 +796,7 @@ async function* buildSSEGenerator(p: SSEGeneratorParams): AsyncGenerator<string>
         if (!hasEmittedClientFrame && frame.trim()) {
           hasEmittedClientFrame = true;
         }
+        transformedStreamSnapshot += frame;
         yield frame;
       }
 
@@ -835,7 +837,10 @@ async function* buildSSEGenerator(p: SSEGeneratorParams): AsyncGenerator<string>
           ...usageData,
         };
 
-        if (lastMessage) {
+        if (transformedStreamSnapshot) {
+          debug.addTransformedResponse(requestId, transformedStreamSnapshot);
+          debug.addTransformedResponseSnapshot(requestId, transformedStreamSnapshot);
+        } else if (lastMessage) {
           debug.addTransformedResponse(requestId, lastMessage);
           debug.addTransformedResponseSnapshot(requestId, lastMessage);
         }
@@ -855,6 +860,63 @@ async function* buildSSEGenerator(p: SSEGeneratorParams): AsyncGenerator<string>
       }
 
       if (event.type === 'error') {
+        const errorMessage = extractPiAiErrorMessage(event.error) ?? 'Upstream error';
+        const usageRecord = {
+          requestId,
+          date: new Date().toISOString(),
+          sourceIp,
+          apiKey: keyName ?? null,
+          attribution,
+          incomingApiType,
+          provider: route.provider,
+          attemptCount,
+          retryHistory: retryHistory.length > 0 ? JSON.stringify(retryHistory) : null,
+          incomingModelAlias: modelAlias,
+          canonicalModelName: route.canonicalModel ?? null,
+          selectedModelName: route.model,
+          finalAttemptProvider: route.provider,
+          finalAttemptModel: route.model,
+          allAttemptedProviders: attemptedProviders.join(', '),
+          outgoingApiType: piModel.api,
+          isStreamed: true,
+          responseStatus: 'error',
+          costSource: 'pi-ai',
+          toolsDefined,
+          messageCount,
+          parallelToolCallsEnabled: parallelToolCalls,
+          startTime,
+          durationMs: Date.now() - startTime,
+          costMetadata: null,
+          tokensReasoning: null,
+          tokensInput: null,
+          tokensOutput: null,
+          tokensCached: null,
+          tokensCacheWrite: null,
+          costInput: null,
+          costOutput: null,
+          costCached: null,
+          costCacheWrite: null,
+          costTotal: null,
+          ttftMs,
+          finishReason: 'error',
+          toolCallsCount: null,
+        };
+
+        if (transformedStreamSnapshot) {
+          debug.addTransformedResponse(requestId, transformedStreamSnapshot);
+          debug.addTransformedResponseSnapshot(requestId, transformedStreamSnapshot);
+        } else {
+          debug.addTransformedResponse(requestId, event.error);
+          debug.addTransformedResponseSnapshot(requestId, event.error);
+        }
+        await usageStorage.saveRequest(usageRecord as any);
+        await usageStorage.saveError(requestId, new Error(errorMessage), {
+          apiType: incomingApiType,
+          provider: route.provider,
+          targetModel: route.model,
+          targetApiType: piModel.api,
+          providerResponse: event.error,
+        });
         doRelease();
         // Surface error as a final frame then close
         break;

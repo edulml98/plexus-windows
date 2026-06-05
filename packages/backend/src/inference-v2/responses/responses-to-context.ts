@@ -47,7 +47,20 @@ export interface ResponsesToContextResult {
 
 /** Normalize Responses API input: string → single user message item */
 export function normalizeResponsesInput(input: unknown): any[] {
-  if (Array.isArray(input)) return input as any[];
+  if (Array.isArray(input)) {
+    return (input as any[]).map((item) => {
+      if (
+        item &&
+        typeof item === 'object' &&
+        !Array.isArray(item) &&
+        !('type' in item) &&
+        typeof item.role === 'string'
+      ) {
+        return { type: 'message', ...item };
+      }
+      return item;
+    });
+  }
   return [
     {
       type: 'message',

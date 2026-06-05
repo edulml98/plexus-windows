@@ -823,6 +823,7 @@ export const KeyConfigSchema = z.object({
   allowedProviders: z.array(z.string().min(1)).optional(),
   excludedModels: z.array(z.string().min(1)).optional(),
   excludedProviders: z.array(z.string().min(1)).optional(),
+  beta: z.boolean().optional(),
   allowedIps: z
     .array(
       z.string().min(1).refine(isValidIpRule, {

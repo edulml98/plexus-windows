@@ -892,6 +892,7 @@ export interface KeyConfig {
   excludedModels?: string[];
   excludedProviders?: string[];
   allowedIps?: string[];
+  beta?: boolean;
 }
 
 export type UsageSortField =
@@ -1589,6 +1590,7 @@ export const api = {
           excludedModels?: string[];
           excludedProviders?: string[];
           allowedIps?: string[];
+          beta?: boolean;
         }
       >;
 
@@ -1602,6 +1604,7 @@ export const api = {
         excludedModels: val.excludedModels,
         excludedProviders: val.excludedProviders,
         allowedIps: val.allowedIps,
+        beta: val.beta,
       }));
     } catch (e) {
       console.error('API Error getKeys', e);
@@ -1624,6 +1627,7 @@ export const api = {
           excludedModels: keyConfig.excludedModels ?? [],
           excludedProviders: keyConfig.excludedProviders ?? [],
           allowedIps: keyConfig.allowedIps ?? [],
+          beta: !!keyConfig.beta,
         }),
       }
     );
@@ -2937,6 +2941,7 @@ export const api = {
     allowedModels?: string[];
     quotaName?: string | null;
     comment?: string | null;
+    beta?: boolean;
     traceEnabled?: boolean;
     traceEnabledGlobal?: boolean;
   }> => {

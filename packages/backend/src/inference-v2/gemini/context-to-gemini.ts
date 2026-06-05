@@ -12,15 +12,15 @@
  *   Parts order: thinking → text → functionCall  (mirrors response-formatter.ts)
  *   thinking parts have `thought: true`.
  *
- * Streaming — NDJSON (one JSON object per line, NOT SSE):
- *   - Each `text_delta` / `thinking_delta` event → one NDJSON line with a
+ * Streaming — Gemini data frames:
+ *   - Each `text_delta` / `thinking_delta` event → one `data: <json>\n\n` frame with a
  *     partial candidate containing the delta text.
- *   - Each `toolcall_start` event → one NDJSON line with a functionCall part.
- *   - The `done` event → one NDJSON line that includes usageMetadata.
+ *   - Each `toolcall_start` event → one `data: <json>\n\n` frame with a functionCall part.
+ *   - The `done` event → one `data: <json>\n\n` frame that includes usageMetadata.
  *   - All other event types produce no output.
  *
- * The NDJSON format is what the real Gemini API returns for streamGenerateContent.
- * Each line is `JSON.stringify(geminiChunk) + "\n"`.
+ * This matches the real Gemini streamGenerateContent response body shape.
+ * Each frame is `data: ${JSON.stringify(geminiChunk)}\n\n`.
  *
  * Finish reason mapping:
  *   stop / length / toolUse → "STOP" (Gemini does not use TOOL_CALLS as a
@@ -144,7 +144,7 @@ export function messageToGeminiResponse(
   };
 }
 
-// ─── Streaming: AssistantMessageEvent → NDJSON line ──────────────────────────
+// ─── Streaming: AssistantMessageEvent → Gemini data frame ─────────────────────
 
 /**
  * State needed across events to track the accumulated tool-call argument string
@@ -164,15 +164,15 @@ export function makeGeminiChunkSerialiserState(model: string): GeminiChunkSerial
 }
 
 /**
- * Convert one AssistantMessageEvent to zero or more NDJSON line strings.
- * Each string is a complete JSON object followed by "\n".
+ * Convert one AssistantMessageEvent to zero or more Gemini stream frame strings.
+ * Each string is a complete `data: <json>\n\n` frame.
  */
 export function eventToGeminiNDJSON(
   event: AssistantMessageEvent,
   state: GeminiChunkSerialiserState
 ): string[] {
   function line(obj: GeminiResponse): string {
-    return JSON.stringify(obj) + '\n';
+    return `data: ${JSON.stringify(obj)}\n\n`;
   }
 
   function partialCandidate(

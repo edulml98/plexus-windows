@@ -6,7 +6,12 @@ import { responsesToContext, normalizeResponsesInput } from '../responses-to-con
 describe('normalizeResponsesInput', () => {
   it('returns an array unchanged', () => {
     const arr = [{ type: 'message', role: 'user', content: [] }];
-    expect(normalizeResponsesInput(arr)).toBe(arr);
+    expect(normalizeResponsesInput(arr)).toEqual(arr);
+  });
+
+  it('coerces role-only message items to type:message', () => {
+    const result = normalizeResponsesInput([{ role: 'user', content: 'Hello' }]);
+    expect(result).toEqual([{ type: 'message', role: 'user', content: 'Hello' }]);
   });
 
   it('wraps a string in a user message item', () => {
@@ -36,6 +41,22 @@ describe('responsesToContext', () => {
   });
 
   describe('user messages', () => {
+    it('maps role-only OpenCode-style input messages', () => {
+      const result = responsesToContext({
+        model: 'gpt-4',
+        input: [
+          { role: 'developer', content: 'Use terse answers.' },
+          {
+            role: 'user',
+            content: [{ type: 'input_text', text: 'Hello' }],
+          },
+        ],
+      });
+      expect(result.context.systemPrompt).toBe('Use terse answers.');
+      expect(result.context.messages).toHaveLength(1);
+      expect(result.context.messages[0]!.role).toBe('user');
+    });
+
     it('maps input_text to UserMessage', () => {
       const result = responsesToContext({
         model: 'gpt-4',

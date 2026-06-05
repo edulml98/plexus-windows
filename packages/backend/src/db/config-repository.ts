@@ -983,6 +983,7 @@ export class ConfigRepository {
         ...(excludedModels ? { excludedModels } : {}),
         ...(excludedProviders ? { excludedProviders } : {}),
         ...(allowedIps ? { allowedIps } : {}),
+        ...(row.beta ? { beta: true } : {}),
       };
     }
 
@@ -1036,6 +1037,7 @@ export class ConfigRepository {
         ...(excludedModels ? { excludedModels } : {}),
         ...(excludedProviders ? { excludedProviders } : {}),
         ...(allowedIps ? { allowedIps } : {}),
+        ...(row.beta ? { beta: true } : {}),
       },
     };
   }
@@ -1065,6 +1067,7 @@ export class ConfigRepository {
           excludedModels: stringifyStringArray(config.excludedModels),
           excludedProviders: stringifyStringArray(config.excludedProviders),
           allowedIps: stringifyStringArray(config.allowedIps),
+          beta: config.beta ?? false,
           updatedAt: timestamp,
         })
         .where(eq(schema.apiKeys.name, name));
@@ -1082,6 +1085,7 @@ export class ConfigRepository {
           excludedModels: stringifyStringArray(config.excludedModels),
           excludedProviders: stringifyStringArray(config.excludedProviders),
           allowedIps: stringifyStringArray(config.allowedIps),
+          beta: config.beta ?? false,
           createdAt: timestamp,
           updatedAt: timestamp,
         });
