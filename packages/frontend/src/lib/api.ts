@@ -250,6 +250,7 @@ export interface Provider {
   stallMinBps?: number | null;
   stallWindowMs?: number | null;
   stallGracePeriodMs?: number | null;
+  pi_ai_provider?: string;
 }
 
 export interface McpServer {
@@ -891,6 +892,7 @@ export interface KeyConfig {
   excludedModels?: string[];
   excludedProviders?: string[];
   allowedIps?: string[];
+  beta?: boolean;
 }
 
 export type UsageSortField =
@@ -1588,6 +1590,7 @@ export const api = {
           excludedModels?: string[];
           excludedProviders?: string[];
           allowedIps?: string[];
+          beta?: boolean;
         }
       >;
 
@@ -1601,6 +1604,7 @@ export const api = {
         excludedModels: val.excludedModels,
         excludedProviders: val.excludedProviders,
         allowedIps: val.allowedIps,
+        beta: val.beta,
       }));
     } catch (e) {
       console.error('API Error getKeys', e);
@@ -1623,6 +1627,7 @@ export const api = {
           excludedModels: keyConfig.excludedModels ?? [],
           excludedProviders: keyConfig.excludedProviders ?? [],
           allowedIps: keyConfig.allowedIps ?? [],
+          beta: !!keyConfig.beta,
         }),
       }
     );
@@ -1708,6 +1713,7 @@ export const api = {
           stallMinBps: val.stallMinBps ?? undefined,
           stallWindowMs: val.stallWindowMs ?? undefined,
           stallGracePeriodMs: val.stallGracePeriodMs ?? undefined,
+          pi_ai_provider: val.pi_ai_provider ?? undefined,
         };
       });
     } catch (e) {
@@ -1766,6 +1772,7 @@ export const api = {
       ...(provider.stallGracePeriodMs != null
         ? { stallGracePeriodMs: provider.stallGracePeriodMs }
         : {}),
+      ...(provider.pi_ai_provider ? { pi_ai_provider: provider.pi_ai_provider } : {}),
     };
 
     const res = await fetchWithAuth(
@@ -2934,6 +2941,7 @@ export const api = {
     allowedModels?: string[];
     quotaName?: string | null;
     comment?: string | null;
+    beta?: boolean;
     traceEnabled?: boolean;
     traceEnabledGlobal?: boolean;
   }> => {
