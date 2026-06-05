@@ -11,6 +11,9 @@
 import { getModel } from '@earendil-works/pi-ai';
 import type { Model as PiAiModel } from '@earendil-works/pi-ai';
 import type { ProviderConfig } from '../../config';
+import type { RouteResult } from '../../services/router';
+import { estimateKwhUsed } from '../../services/inference-energy';
+import { resolveModelParams, DEFAULT_GPU_PARAMS } from '@plexus/shared';
 
 // ─── buildThinkingOptions ─────────────────────────────────────────────────────
 //
@@ -213,4 +216,36 @@ export function buildPiAiModel(
   const piModel = getModel(piAiProvider as any, piAiModelId as any);
   const baseUrl = resolveBaseUrl(providerConfig.api_base_url, piModel.api, incomingApiType);
   return { ...piModel, baseUrl };
+}
+
+// ─── Energy helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Build GPU params from a route's provider config, falling back to defaults.
+ * Mirrors the same logic used in the Dispatcher and management config routes.
+ */
+export function buildGpuParams(routeConfig: RouteResult['config']) {
+  return {
+    ram_gb: (routeConfig as any).gpu_ram_gb ?? DEFAULT_GPU_PARAMS.ram_gb,
+    bandwidth_tb_s: (routeConfig as any).gpu_bandwidth_tb_s ?? DEFAULT_GPU_PARAMS.bandwidth_tb_s,
+    flops_tflop: (routeConfig as any).gpu_flops_tflop ?? DEFAULT_GPU_PARAMS.flops_tflop,
+    power_draw_watts:
+      (routeConfig as any).gpu_power_draw_watts ?? DEFAULT_GPU_PARAMS.power_draw_watts,
+  };
+}
+
+/**
+ * Estimate kWh used for a request given token counts and route metadata.
+ * Returns null when no model architecture is configured for the route.
+ */
+export function computeKwhUsed(
+  tokensInput: number,
+  tokensOutput: number,
+  route: RouteResult
+): number | null {
+  if (!route.modelArchitecture) return null;
+  const gpuParams = buildGpuParams(route.config);
+  const modelParams = resolveModelParams(route.modelArchitecture);
+  const kwh = estimateKwhUsed(tokensInput, tokensOutput, modelParams, gpuParams);
+  return kwh > 0 ? kwh : null;
 }

@@ -42,7 +42,13 @@ import { recordQuotaUsage } from '../../services/quota/quota-middleware';
 import { logger } from '../../utils/logger';
 import { getConfig } from '../../config';
 import { applyKeyAccessPolicy, type PolicyRequest } from '../../services/key-access-policy';
-import { buildPiAiModel, buildReasoningOptions } from './pi-ai-utils';
+import {
+  buildPiAiModel,
+  buildReasoningOptions,
+  buildGpuParams,
+  computeKwhUsed,
+} from './pi-ai-utils';
+import { consumeTtfb } from './fetch-tap';
 import { extractPiAiErrorMessage } from '../../transformers/oauth/type-mappers';
 
 // ─── AsyncLocalStorage for debug raw-capture correlation ─────────────────────
@@ -285,7 +291,8 @@ function buildUsageFromMessage(
   msg: AssistantMessage,
   piModel: ReturnType<typeof getModel>,
   startTime: number,
-  ttftMs: number | null
+  ttftMs: number | null,
+  route: RouteResult
 ): {
   tokensInput: number;
   tokensOutput: number;
@@ -300,9 +307,12 @@ function buildUsageFromMessage(
   toolCallsCount: number;
   ttftMs: number | null;
   durationMs: number;
+  tokensPerSec: number | null;
+  kwhUsed: number | null;
 } {
   const usage = msg.usage;
   const cost = calculateCost(piModel as any, usage);
+  const durationMs = Date.now() - startTime;
 
   const finishReasonMap: Record<string, string> = {
     stop: 'stop',
@@ -313,10 +323,20 @@ function buildUsageFromMessage(
   };
 
   const toolCallsCount = msg.content.filter((b) => b.type === 'toolCall').length;
+  const tokensOutput = usage.output;
+
+  // tokensPerSec: for streaming use post-TTFT window; for non-streaming use full duration
+  let tokensPerSec: number | null = null;
+  if (tokensOutput > 0 && durationMs > 0) {
+    const streamingTimeMs = ttftMs != null ? durationMs - ttftMs : durationMs;
+    tokensPerSec = streamingTimeMs > 0 ? (tokensOutput / streamingTimeMs) * 1000 : null;
+  }
+
+  const kwhUsed = computeKwhUsed(usage.input, tokensOutput, route);
 
   return {
     tokensInput: usage.input,
-    tokensOutput: usage.output,
+    tokensOutput,
     tokensCached: usage.cacheRead,
     tokensCacheWrite: usage.cacheWrite,
     costInput: cost?.input ?? 0,
@@ -327,7 +347,9 @@ function buildUsageFromMessage(
     finishReason: finishReasonMap[msg.stopReason] ?? msg.stopReason,
     toolCallsCount,
     ttftMs,
-    durationMs: Date.now() - startTime,
+    durationMs,
+    tokensPerSec,
+    kwhUsed,
   };
 }
 
@@ -515,7 +537,8 @@ export async function runPiAiExecutor<TResponse>(
         attemptTimeout.cleanup();
 
         // ── Build usage record ─────────────────────────────────────────
-        const usageData = buildUsageFromMessage(message, piModel as any, startTime, null);
+        const ttftMs = consumeTtfb(requestId);
+        const usageData = buildUsageFromMessage(message, piModel as any, startTime, ttftMs, route);
         const usageRecord = {
           requestId,
           date: new Date().toISOString(),
@@ -546,7 +569,17 @@ export async function runPiAiExecutor<TResponse>(
         };
 
         debug.addTransformedResponse(requestId, message);
+        debug.addTransformedResponseSnapshot(requestId, message);
         await usageStorage.saveRequest(usageRecord as any);
+        await usageStorage.updatePerformanceMetrics(
+          route.provider,
+          route.model,
+          route.canonicalModel ?? null,
+          null,
+          usageData.tokensOutput > 0 ? usageData.tokensOutput : null,
+          usageData.durationMs,
+          requestId
+        );
         if (quotaEnforcer) await recordQuotaUsage(keyName, usageRecord, quotaEnforcer);
         debug.flush(requestId);
 
@@ -594,6 +627,9 @@ export async function runPiAiExecutor<TResponse>(
       }
     } catch (err: any) {
       const effectiveErr = attemptTimeout.isTimedOut() ? buildTimeoutError() : err;
+
+      // Clean up any TTFB entry that wasn't consumed (non-streaming error path)
+      consumeTtfb(requestId);
 
       if (signal?.aborted) {
         concurrency.release(route.provider, route.model);
@@ -769,7 +805,7 @@ async function* buildSSEGenerator(p: SSEGeneratorParams): AsyncGenerator<string>
         appendSuccessAttempt(retryHistory, route, incomingApiType);
         doRelease();
 
-        const usageData = buildUsageFromMessage(msg, piModel, startTime, ttftMs);
+        const usageData = buildUsageFromMessage(msg, piModel, startTime, ttftMs, route);
         const usageRecord = {
           requestId,
           date: new Date().toISOString(),
@@ -799,8 +835,20 @@ async function* buildSSEGenerator(p: SSEGeneratorParams): AsyncGenerator<string>
           ...usageData,
         };
 
-        if (lastMessage) debug.addTransformedResponse(requestId, lastMessage);
+        if (lastMessage) {
+          debug.addTransformedResponse(requestId, lastMessage);
+          debug.addTransformedResponseSnapshot(requestId, lastMessage);
+        }
         await usageStorage.saveRequest(usageRecord as any);
+        await usageStorage.updatePerformanceMetrics(
+          route.provider,
+          route.model,
+          route.canonicalModel ?? null,
+          usageData.ttftMs,
+          usageData.tokensOutput > 0 ? usageData.tokensOutput : null,
+          usageData.durationMs,
+          requestId
+        );
         if (quotaEnforcer) await recordQuotaUsage(keyName, usageRecord, quotaEnforcer);
         await onSuccess?.(msg);
         break;

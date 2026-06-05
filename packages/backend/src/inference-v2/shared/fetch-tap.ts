@@ -21,6 +21,23 @@ import { debugRequestIdStorage } from './pi-ai-executor';
 let installed = false;
 const originalFetch = globalThis.fetch;
 
+/**
+ * Per-request TTFB map: requestId → time-to-first-byte in ms.
+ *
+ * The fetch tap records the elapsed time between the call to originalFetch()
+ * and the moment the Response object is returned (i.e. headers received /
+ * first byte available).  The executor reads this after complete() or after
+ * the first streaming chunk to populate ttftMs on the usage record.
+ */
+const ttfbMap = new Map<string, number>();
+
+/** Called by the executor after consuming the result — prevents map growth. */
+export function consumeTtfb(requestId: string): number | null {
+  const v = ttfbMap.get(requestId) ?? null;
+  ttfbMap.delete(requestId);
+  return v;
+}
+
 export function installFetchTap(): void {
   if (installed) return;
   installed = true;
@@ -30,14 +47,26 @@ export function installFetchTap(): void {
     input: RequestInfo | URL,
     init?: RequestInit
   ): Promise<Response> {
+    const fetchStart = Date.now();
     const response = await originalFetch(input, init);
+    const ttfb = Date.now() - fetchStart;
 
-    // Only tap when there is an active debug session for this request
+    // Always record TTFB when there is an active inference-v2 request context,
+    // regardless of whether debug logging is enabled.
     const requestId = debugRequestIdStorage.getStore();
     if (!requestId) return response;
 
+    ttfbMap.set(requestId, ttfb);
+
     const debug = DebugManager.getInstance();
     if (!debug.isEnabled() && !debug.isEnabledForKey(requestId)) return response;
+
+    // Capture response status and headers
+    const responseHeaders: Record<string, string> = {};
+    response.headers.forEach((value, key) => {
+      responseHeaders[key] = value;
+    });
+    debug.addResponseMeta(requestId, response.status, responseHeaders);
 
     // Determine if the response is streaming (Transfer-Encoding: chunked or no Content-Length)
     const isStream =
@@ -55,6 +84,7 @@ export function installFetchTap(): void {
         .text()
         .then((text) => {
           debug.addRawResponse(requestId, text);
+          debug.addReconstructedRawResponse(requestId, text);
         })
         .catch(() => {
           /* non-fatal */
@@ -81,6 +111,7 @@ export function installFetchTap(): void {
             }, new Uint8Array())
           );
           debug.addRawResponse(requestId, full);
+          debug.addReconstructedRawResponse(requestId, full);
         } catch {
           /* non-fatal */
         }
