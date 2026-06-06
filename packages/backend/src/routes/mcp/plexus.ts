@@ -5,6 +5,9 @@ import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
 import { getConfig, type PlexusConfig } from '../../config';
 import { logger } from '../../utils/logger';
+import { ConfigService } from '../../services/config-service';
+import { McpUsageStorageService } from '../../services/mcp-proxy/mcp-usage-storage';
+import { getClientIp } from '../../utils/ip';
 import { ManagementAuthError, authenticate, requireAdmin } from '../management/_principal';
 
 const PLEXUS_MANAGEMENT_PROMPT = `Plexus is a unified API gateway for LLMs. It exposes OpenAI- and Anthropic-compatible endpoints, routes requests to configured providers, records usage, and manages provider, model alias, key, quota, debug, and MCP gateway configuration.
@@ -17,14 +20,17 @@ Destructive or high-impact operations require destructive: "acknowledged". Secre
 
 Common workflows:
 - Review request activity with plexus_usage list or summary.
-- Inspect provider setup with plexus_provider list or get.
-- Inspect model routing with plexus_model_alias list or get.
-- Inspect inference keys with plexus_key list or get; normal responses redact secrets.
-- Check upstream quota state with plexus_quota_checker list, get, history, or check.
-- Inspect user quota definitions with plexus_quota list or get.
-- Review MCP gateway configuration with plexus_mcp_gateway servers_list.
+- Inspect or update provider setup with plexus_provider list, get, put, update, delete, or fetch_models.
+- Inspect or update model routing with plexus_model_alias list, get, put, update, delete, or delete_all.
+- Inspect or update inference keys with plexus_key list, get, put, update, or delete; normal responses redact secrets.
+- Check upstream quota state with plexus_quota_checker types, list, or get.
+- Inspect or update user quota definitions with plexus_quota list, get, put, update, or delete.
+- Review or update MCP gateway configuration with plexus_mcp_gateway servers_list, get, put, update, or delete.
 - Inspect general settings with plexus_settings get and a category.
+- Inspect recent system logs with plexus_system_logs recent.
+- Inspect or change the runtime logging level with plexus_system_logs level, set_level, or reset_level.
 - Use plexus_debug state before enabling debug tracing.
+- Use plexus_operations backup, restore, list_cooldowns, or clear_cooldowns for operational actions.
 
 Best practices:
 - Keep changes narrow and reversible.
@@ -43,8 +49,8 @@ const TOOL_NAMES = [
   'plexus_debug',
   'plexus_mcp_gateway',
   'plexus_settings',
-  'plexus_operations',
   'plexus_system_logs',
+  'plexus_operations',
 ] as const;
 
 const DESTRUCTIVE_OPERATIONS = new Set([
@@ -112,6 +118,11 @@ type ToolResponse = {
   };
 };
 
+type ManagementShimContext = {
+  fastify: FastifyInstance;
+  headers: Record<string, string>;
+};
+
 class McpToolError extends Error {
   type: string;
   code: number;
@@ -123,7 +134,10 @@ class McpToolError extends Error {
   }
 }
 
-export async function registerPlexusMcpRoutes(fastify: FastifyInstance) {
+export async function registerPlexusMcpRoutes(
+  fastify: FastifyInstance,
+  mcpUsageStorage: McpUsageStorageService
+) {
   fastify.register(async (plexusMcp) => {
     plexusMcp.setErrorHandler(async (error, _request, reply) => {
       if (error instanceof ManagementAuthError) {
@@ -132,19 +146,68 @@ export async function registerPlexusMcpRoutes(fastify: FastifyInstance) {
       throw error;
     });
 
+    // Reject early when the admin MCP is disabled (before auth, to avoid leaking key validity)
+    plexusMcp.addHook('preHandler', async (_request, reply) => {
+      try {
+        const configService = ConfigService.getInstance();
+        const mcpEnabled = await configService.getSetting<boolean>('mcpEnabled', true);
+        if (!mcpEnabled) {
+          return reply.code(418).send({
+            error: {
+              message: 'Plexus Management MCP is disabled. Enable it on the MCP Servers page.',
+              type: 'mcp_disabled',
+            },
+          });
+        }
+      } catch {
+        // ConfigService not initialized — default to enabled
+      }
+    });
+
     plexusMcp.addHook('preHandler', authenticate);
     plexusMcp.addHook('preHandler', requireAdmin);
 
-    plexusMcp.post('/mcp/plexus', handlePlexusMcpRequest);
-    plexusMcp.get('/mcp/plexus', handlePlexusMcpRequest);
-    plexusMcp.delete('/mcp/plexus', handlePlexusMcpRequest);
+    plexusMcp.post('/mcp/plexus', (request, reply) =>
+      handlePlexusMcpRequest(request, reply, mcpUsageStorage)
+    );
+    plexusMcp.get('/mcp/plexus', (request, reply) =>
+      handlePlexusMcpRequest(request, reply, mcpUsageStorage)
+    );
+    plexusMcp.delete('/mcp/plexus', (request, reply) =>
+      handlePlexusMcpRequest(request, reply, mcpUsageStorage)
+    );
   });
 }
 
-async function handlePlexusMcpRequest(request: FastifyRequest, reply: FastifyReply) {
+async function handlePlexusMcpRequest(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  mcpUsageStorage: McpUsageStorageService
+) {
+  const startTime = Date.now();
+  const requestId = crypto.randomUUID();
+  const sourceIp = getClientIp(request);
+  const method = request.method as 'POST' | 'GET' | 'DELETE';
+  const requestBody =
+    request.body && typeof request.body === 'object'
+      ? (request.body as Record<string, unknown>)
+      : undefined;
+  const jsonrpcMethod = typeof requestBody?.method === 'string' ? requestBody.method : null;
+  const toolName =
+    jsonrpcMethod === 'tools/call' &&
+    requestBody?.params &&
+    typeof requestBody.params === 'object' &&
+    typeof (requestBody.params as Record<string, unknown>).name === 'string'
+      ? ((requestBody.params as Record<string, unknown>).name as string)
+      : null;
+  const shimContext: ManagementShimContext = {
+    fastify: reply.server,
+    headers: buildShimHeaders(request),
+  };
+
   // The SDK server owns one active transport at a time. A singleton would need
   // close/reconnect queueing, so stateless per-request servers are simpler and safer.
-  const server = createPlexusMcpServer();
+  const server = createPlexusMcpServer(shimContext);
   const transport = new WebStandardStreamableHTTPServerTransport({
     enableJsonResponse: true,
     sessionIdGenerator: undefined,
@@ -161,13 +224,32 @@ async function handlePlexusMcpRequest(request: FastifyRequest, reply: FastifyRep
     }
 
     const body = await webResponse.text();
+    await mcpUsageStorage.saveRequest({
+      request_id: requestId,
+      created_at: new Date().toISOString(),
+      start_time: startTime,
+      duration_ms: Date.now() - startTime,
+      server_name: 'plexus',
+      upstream_url: '/mcp/plexus',
+      method,
+      jsonrpc_method: jsonrpcMethod,
+      tool_name: toolName,
+      api_key: 'admin',
+      attribution: null,
+      source_ip: sourceIp,
+      response_status: webResponse.status,
+      is_streamed: false,
+      has_debug: false,
+      error_code: webResponse.status >= 400 ? 'MCP_ERROR' : null,
+      error_message: webResponse.status >= 400 ? body || 'MCP request failed' : null,
+    });
     return reply.code(webResponse.status).send(body || undefined);
   } finally {
     await server.close();
   }
 }
 
-function createPlexusMcpServer() {
+function createPlexusMcpServer(shimContext: ManagementShimContext) {
   const server = new McpServer(
     {
       name: 'plexus-management',
@@ -225,14 +307,18 @@ function createPlexusMcpServer() {
         description: getToolDescription(toolName),
         inputSchema: ToolInputSchema,
       },
-      async (input) => toToolResult(await handleToolCall(toolName, input as ToolInput))
+      async (input) => toToolResult(await handleToolCall(toolName, input as ToolInput, shimContext))
     );
   }
 
   return server;
 }
 
-async function handleToolCall(toolName: (typeof TOOL_NAMES)[number], input: ToolInput) {
+async function handleToolCall(
+  toolName: (typeof TOOL_NAMES)[number],
+  input: ToolInput,
+  shimContext: ManagementShimContext
+) {
   try {
     if (DESTRUCTIVE_OPERATIONS.has(input.operation)) {
       requireDestructiveAck(input);
@@ -242,30 +328,29 @@ async function handleToolCall(toolName: (typeof TOOL_NAMES)[number], input: Tool
 
     switch (toolName) {
       case 'plexus_config':
-        return handleConfigTool(input, config);
+        return handleConfigTool(input, config, shimContext);
       case 'plexus_provider':
-        return handleRecordTool(input, config.providers ?? {}, 'provider');
+        return handleProviderTool(input, shimContext);
       case 'plexus_model_alias':
-        return handleRecordTool(input, config.models ?? {}, 'model_alias');
+        return handleModelAliasTool(input, shimContext);
       case 'plexus_key':
-        return handleRecordTool(input, config.keys ?? {}, 'key');
+        return handleKeyTool(input, shimContext);
       case 'plexus_quota':
-        return handleRecordTool(input, config.user_quotas ?? {}, 'quota');
+        return handleQuotaTool(input, shimContext);
       case 'plexus_quota_checker':
         return handleQuotaCheckerTool(input, config);
       case 'plexus_mcp_gateway':
-        return handleMcpGatewayTool(input, config);
+        return handleMcpGatewayTool(input, shimContext);
       case 'plexus_settings':
-        return handleSettingsTool(input, config);
-      case 'plexus_usage':
-      case 'plexus_debug':
-      case 'plexus_operations':
+        return handleSettingsTool(input, shimContext);
       case 'plexus_system_logs':
-        throw new McpToolError(
-          `${toolName} operation '${input.operation}' is not implemented yet.`,
-          'not_implemented',
-          501
-        );
+        return handleSystemLogsTool(input, shimContext);
+      case 'plexus_usage':
+        return handleUsageTool(input, shimContext);
+      case 'plexus_debug':
+        return handleDebugTool(input, shimContext);
+      case 'plexus_operations':
+        return handleOperationsTool(input, shimContext);
     }
   } catch (error) {
     if (error instanceof McpToolError) {
@@ -276,11 +361,264 @@ async function handleToolCall(toolName: (typeof TOOL_NAMES)[number], input: Tool
   }
 }
 
-function handleConfigTool(input: ToolInput, config: PlexusConfig): ToolResponse {
+async function handleUsageTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
+  switch (input.operation) {
+    case 'list': {
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'GET',
+          '/v0/management/usage',
+          undefined,
+          input.query
+        )
+      );
+    }
+    case 'summary': {
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'GET',
+          '/v0/management/usage/summary',
+          undefined,
+          input.query
+        )
+      );
+    }
+    case 'delete': {
+      if (!input.id) {
+        throw new McpToolError('Missing id for usage delete operation.', 'invalid_request', 400);
+      }
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'DELETE',
+          `/v0/management/usage/${encodePathPreservingSlashes(input.id)}`
+        )
+      );
+    }
+    case 'delete_all': {
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'DELETE',
+          '/v0/management/usage',
+          undefined,
+          input.query
+        )
+      );
+    }
+    default:
+      throw unsupportedOperation(input.operation, ['list', 'summary', 'delete', 'delete_all']);
+  }
+}
+
+async function handleDebugTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
+  switch (input.operation) {
+    case 'state':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'GET', '/v0/management/debug')
+      );
+    case 'update':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'PATCH', '/v0/management/debug', input.body ?? {})
+      );
+    case 'logs':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'GET',
+          '/v0/management/debug/logs',
+          undefined,
+          input.query
+        )
+      );
+    case 'get_log': {
+      if (!input.id) {
+        throw new McpToolError('Missing id for debug get_log operation.', 'invalid_request', 400);
+      }
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'GET',
+          `/v0/management/debug/logs/${encodePathPreservingSlashes(input.id)}`
+        )
+      );
+    }
+    case 'delete_log': {
+      if (!input.id) {
+        throw new McpToolError(
+          'Missing id for debug delete_log operation.',
+          'invalid_request',
+          400
+        );
+      }
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'DELETE',
+          `/v0/management/debug/logs/${encodePathPreservingSlashes(input.id)}`
+        )
+      );
+    }
+    case 'delete_all_logs':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'DELETE', '/v0/management/debug/logs')
+      );
+    default:
+      throw unsupportedOperation(input.operation, [
+        'state',
+        'update',
+        'logs',
+        'get_log',
+        'delete_log',
+        'delete_all_logs',
+      ]);
+  }
+}
+
+async function handleOperationsTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
+  switch (input.operation) {
+    case 'backup': {
+      const full = input.query?.full === true || asOptionalString(input.query?.full) === 'true';
+      if (full) {
+        const archive = await callManagementRoute(
+          shimContext,
+          'GET',
+          '/v0/management/backup',
+          undefined,
+          { full: 'true' },
+          true
+        );
+        return successResponse(input.operation, {
+          full: true,
+          bytes: archive.byteLength,
+          contentType: 'application/gzip',
+          encoding: 'base64',
+          archive: archive.toString('base64'),
+        });
+      }
+      return successResponse(input.operation, {
+        full: false,
+        backup: await callManagementRoute(shimContext, 'GET', '/v0/management/backup'),
+      });
+    }
+    case 'restore': {
+      const body = input.body ?? {};
+      if (body.full === true || typeof body.archive === 'string') {
+        if (typeof body.archive !== 'string') {
+          throw new McpToolError(
+            'body.archive must be a base64 string for full restore.',
+            'invalid_request',
+            400
+          );
+        }
+        return successResponse(
+          input.operation,
+          await callManagementRoute(
+            shimContext,
+            'POST',
+            '/v0/management/restore',
+            Buffer.from(body.archive, 'base64'),
+            undefined,
+            false,
+            { 'content-type': 'application/gzip' }
+          )
+        );
+      }
+      if (!body.plexus_backup) {
+        throw new McpToolError(
+          'Invalid backup: missing plexus_backup field',
+          'invalid_request',
+          400
+        );
+      }
+      return successResponse(input.operation, {
+        ...(await callManagementRoute(shimContext, 'POST', '/v0/management/restore', body)),
+      });
+    }
+    case 'restart':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'POST', '/v0/management/restart')
+      );
+    case 'list_cooldowns':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'GET', '/v0/management/cooldowns')
+      );
+    case 'clear_cooldowns': {
+      const provider = input.id ?? asOptionalString(input.query?.provider);
+      const model = asOptionalString(input.query?.model);
+      return successResponse(
+        input.operation,
+        provider
+          ? await callManagementRoute(
+              shimContext,
+              'DELETE',
+              `/v0/management/cooldowns/${encodePathPreservingSlashes(provider)}`,
+              undefined,
+              model ? { model } : undefined
+            )
+          : await callManagementRoute(shimContext, 'DELETE', '/v0/management/cooldowns')
+      );
+    }
+    case 'reset_logs':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'DELETE', '/v0/management/logs/reset')
+      );
+    default:
+      throw unsupportedOperation(input.operation, [
+        'backup',
+        'restore',
+        'restart',
+        'list_cooldowns',
+        'clear_cooldowns',
+        'reset_logs',
+      ]);
+  }
+}
+
+function asOptionalString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+async function handleConfigTool(
+  input: ToolInput,
+  config: PlexusConfig,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
   switch (input.operation) {
     case 'get':
+      return successResponse(
+        input.operation,
+        redactSecrets(await callManagementRoute(shimContext, 'GET', '/v0/management/config'))
+      );
     case 'export':
-      return successResponse(input.operation, redactSecrets(config));
+      return successResponse(
+        input.operation,
+        redactSecrets(await callManagementRoute(shimContext, 'GET', '/v0/management/config/export'))
+      );
     case 'status':
       return successResponse(input.operation, {
         providerCount: Object.keys(config.providers ?? {}).length,
@@ -294,35 +632,262 @@ function handleConfigTool(input: ToolInput, config: PlexusConfig): ToolResponse 
   }
 }
 
-function handleRecordTool(
+async function handleProviderTool(
   input: ToolInput,
-  records: Record<string, unknown>,
-  resourceType: string
-): ToolResponse {
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
   switch (input.operation) {
-    case 'list':
+    case 'list': {
+      const providers = await callManagementRoute(shimContext, 'GET', '/v0/management/providers');
+      return successResponse(input.operation, mapRecordResponse(redactSecrets(providers)));
+    }
+    case 'get': {
+      const id = requireId(input, 'provider');
+      const provider = await callManagementRoute(
+        shimContext,
+        'GET',
+        `/v0/management/providers/${encodePathPreservingSlashes(id)}`
+      );
+      return successResponse(input.operation, { id, ...asObject(redactSecrets(provider)) });
+    }
+    case 'put':
+    case 'create':
       return successResponse(
         input.operation,
-        Object.entries(records).map(([id, value]) => ({ id, ...asObject(redactSecrets(value)) }))
+        await callManagementRoute(
+          shimContext,
+          'PUT',
+          `/v0/management/providers/${encodePathPreservingSlashes(requireId(input, 'provider'))}`,
+          input.body ?? {}
+        )
       );
-    case 'get': {
-      if (!input.id) {
-        throw new McpToolError(
-          `Missing id for ${resourceType} get operation.`,
-          'invalid_request',
-          400
-        );
-      }
-      if (!(input.id in records)) {
-        throw new McpToolError(`${resourceType} '${input.id}' was not found.`, 'not_found', 404);
-      }
-      return successResponse(input.operation, {
-        id: input.id,
-        ...asObject(redactSecrets(records[input.id])),
-      });
-    }
+    case 'update':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PATCH',
+          `/v0/management/providers/${encodePathPreservingSlashes(requireId(input, 'provider'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'delete':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'DELETE',
+          `/v0/management/providers/${encodePathPreservingSlashes(requireId(input, 'provider'))}`,
+          undefined,
+          input.query
+        )
+      );
+    case 'fetch_models':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'POST',
+          '/v0/management/providers/fetch-models',
+          input.body ?? {}
+        )
+      );
     default:
-      throw unsupportedOperation(input.operation, ['list', 'get']);
+      throw unsupportedOperation(input.operation, [
+        'list',
+        'get',
+        'put',
+        'create',
+        'update',
+        'delete',
+        'fetch_models',
+      ]);
+  }
+}
+
+async function handleModelAliasTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
+  switch (input.operation) {
+    case 'list': {
+      const aliases = await callManagementRoute(shimContext, 'GET', '/v0/management/aliases');
+      return successResponse(input.operation, mapRecordResponse(aliases));
+    }
+    case 'get': {
+      const id = requireId(input, 'model_alias');
+      const alias = await callManagementRoute(
+        shimContext,
+        'GET',
+        `/v0/management/aliases/${encodePathPreservingSlashes(id)}`
+      );
+      return successResponse(input.operation, { id, ...stripNamedId(alias, 'slug') });
+    }
+    case 'put':
+    case 'create':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PUT',
+          `/v0/management/aliases/${encodePathPreservingSlashes(requireId(input, 'model_alias'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'update':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PATCH',
+          `/v0/management/aliases/${encodePathPreservingSlashes(requireId(input, 'model_alias'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'delete':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'DELETE',
+          `/v0/management/models/${encodePathPreservingSlashes(requireId(input, 'model_alias'))}`
+        )
+      );
+    case 'delete_all':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'DELETE', '/v0/management/models')
+      );
+    default:
+      throw unsupportedOperation(input.operation, [
+        'list',
+        'get',
+        'put',
+        'create',
+        'update',
+        'delete',
+        'delete_all',
+      ]);
+  }
+}
+
+async function handleKeyTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
+  switch (input.operation) {
+    case 'list': {
+      const keys = await callManagementRoute(shimContext, 'GET', '/v0/management/keys');
+      return successResponse(input.operation, mapRecordResponse(redactSecrets(keys)));
+    }
+    case 'get': {
+      const id = requireId(input, 'key');
+      const key = await callManagementRoute(
+        shimContext,
+        'GET',
+        `/v0/management/keys/${encodeURIComponent(id)}`
+      );
+      return successResponse(input.operation, { id, ...stripNamedId(redactSecrets(key), 'name') });
+    }
+    case 'put':
+    case 'create':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PUT',
+          `/v0/management/keys/${encodeURIComponent(requireId(input, 'key'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'update':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PATCH',
+          `/v0/management/keys/${encodeURIComponent(requireId(input, 'key'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'delete':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'DELETE',
+          `/v0/management/keys/${encodeURIComponent(requireId(input, 'key'))}`
+        )
+      );
+    default:
+      throw unsupportedOperation(input.operation, [
+        'list',
+        'get',
+        'put',
+        'create',
+        'update',
+        'delete',
+      ]);
+  }
+}
+
+async function handleQuotaTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
+  switch (input.operation) {
+    case 'list': {
+      const quotas = await callManagementRoute(shimContext, 'GET', '/v0/management/user-quotas');
+      return successResponse(input.operation, mapRecordResponse(quotas));
+    }
+    case 'get': {
+      const id = requireId(input, 'quota');
+      const quota = await callManagementRoute(
+        shimContext,
+        'GET',
+        `/v0/management/user-quotas/${encodeURIComponent(id)}`
+      );
+      return successResponse(input.operation, { id, ...stripNamedId(quota, 'name') });
+    }
+    case 'put':
+    case 'create':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PUT',
+          `/v0/management/user-quotas/${encodeURIComponent(requireId(input, 'quota'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'update':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PATCH',
+          `/v0/management/user-quotas/${encodeURIComponent(requireId(input, 'quota'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'delete':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'DELETE',
+          `/v0/management/user-quotas/${encodeURIComponent(requireId(input, 'quota'))}`
+        )
+      );
+    default:
+      throw unsupportedOperation(input.operation, [
+        'list',
+        'get',
+        'put',
+        'create',
+        'update',
+        'delete',
+      ]);
   }
 }
 
@@ -369,58 +934,123 @@ function handleQuotaCheckerTool(input: ToolInput, config: PlexusConfig): ToolRes
   }
 }
 
-function handleMcpGatewayTool(input: ToolInput, config: PlexusConfig): ToolResponse {
-  const servers = getMcpServers(config);
-
+async function handleMcpGatewayTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
   switch (input.operation) {
     case 'servers_list':
-    case 'list':
-      return successResponse(
-        input.operation,
-        Object.entries(servers).map(([id, value]) => ({ id, ...asObject(redactSecrets(value)) }))
-      );
+    case 'list': {
+      const servers = await callManagementRoute(shimContext, 'GET', '/v0/management/mcp-servers');
+      return successResponse(input.operation, mapRecordResponse(redactSecrets(servers)));
+    }
     case 'get': {
-      if (!input.id) {
-        throw new McpToolError('Missing id for MCP gateway get operation.', 'invalid_request', 400);
-      }
-      if (!(input.id in servers)) {
-        throw new McpToolError(`mcp_gateway server '${input.id}' was not found.`, 'not_found', 404);
-      }
+      const id = requireId(input, 'mcp_gateway');
+      const server = await callManagementRoute(
+        shimContext,
+        'GET',
+        `/v0/management/mcp-servers/${encodeURIComponent(id)}`
+      );
       return successResponse(input.operation, {
-        id: input.id,
-        ...asObject(redactSecrets(servers[input.id])),
+        id,
+        ...stripNamedId(redactSecrets(server), 'name'),
       });
     }
+    case 'put':
+    case 'create':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PUT',
+          `/v0/management/mcp-servers/${encodeURIComponent(requireId(input, 'mcp_gateway'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'update':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'PATCH',
+          `/v0/management/mcp-servers/${encodeURIComponent(requireId(input, 'mcp_gateway'))}`,
+          input.body ?? {}
+        )
+      );
+    case 'delete':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'DELETE',
+          `/v0/management/mcp-servers/${encodeURIComponent(requireId(input, 'mcp_gateway'))}`
+        )
+      );
     default:
-      throw unsupportedOperation(input.operation, ['servers_list', 'list', 'get']);
+      throw unsupportedOperation(input.operation, [
+        'servers_list',
+        'list',
+        'get',
+        'put',
+        'create',
+        'update',
+        'delete',
+      ]);
   }
 }
 
-function handleSettingsTool(input: ToolInput, config: PlexusConfig): ToolResponse {
+async function handleSettingsTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
   if (input.operation !== 'get') {
     throw unsupportedOperation(input.operation, ['get']);
   }
 
-  const settings = {
-    failover: config.failover,
-    cooldown: config.cooldown,
-    timeout: config.timeout,
-    stall: config.stall,
-    trusted_proxies: config.trustedProxies,
-    vision_fallthrough: config.vision_fallthrough,
-    background_exploration: config.backgroundExploration,
-    exploration: {
-      performanceExplorationRate: config.performanceExplorationRate,
-      latencyExplorationRate: config.latencyExplorationRate,
-      e2ePerformanceExplorationRate: config.e2ePerformanceExplorationRate,
-    },
-  };
+  const categories = {
+    failover: '/v0/management/config/failover',
+    cooldown: '/v0/management/config/cooldown',
+    timeout: '/v0/management/config/timeout',
+    stall: '/v0/management/config/stall',
+    trusted_proxies: '/v0/management/config/trusted-proxies',
+    vision_fallthrough: '/v0/management/config/vision-fallthrough',
+    background_exploration: '/v0/management/config/background-exploration',
+    exploration: '/v0/management/config/exploration-rate',
+  } as const;
 
   if (!input.category || input.category === 'all') {
-    return successResponse(input.operation, redactSecrets(settings));
+    const [
+      failover,
+      cooldown,
+      timeout,
+      stall,
+      trusted_proxies,
+      vision_fallthrough,
+      background_exploration,
+      exploration,
+    ] = await Promise.all([
+      callManagementRoute(shimContext, 'GET', categories.failover),
+      callManagementRoute(shimContext, 'GET', categories.cooldown),
+      callManagementRoute(shimContext, 'GET', categories.timeout),
+      callManagementRoute(shimContext, 'GET', categories.stall),
+      callManagementRoute(shimContext, 'GET', categories.trusted_proxies),
+      callManagementRoute(shimContext, 'GET', categories.vision_fallthrough),
+      callManagementRoute(shimContext, 'GET', categories.background_exploration),
+      callManagementRoute(shimContext, 'GET', categories.exploration),
+    ]);
+    return successResponse(input.operation, {
+      failover,
+      cooldown,
+      timeout,
+      stall,
+      trusted_proxies,
+      vision_fallthrough,
+      background_exploration,
+      exploration,
+    });
   }
 
-  if (!(input.category in settings)) {
+  if (!(input.category in categories)) {
     throw new McpToolError(
       `settings category '${input.category}' was not found.`,
       'not_found',
@@ -430,8 +1060,170 @@ function handleSettingsTool(input: ToolInput, config: PlexusConfig): ToolRespons
 
   return successResponse(
     input.operation,
-    redactSecrets(settings[input.category as keyof typeof settings])
+    await callManagementRoute(
+      shimContext,
+      'GET',
+      categories[input.category as keyof typeof categories]
+    )
   );
+}
+
+async function handleSystemLogsTool(
+  input: ToolInput,
+  shimContext: ManagementShimContext
+): Promise<ToolResponse> {
+  switch (input.operation) {
+    case 'recent':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(
+          shimContext,
+          'GET',
+          '/v0/system/logs/recent',
+          undefined,
+          input.query
+        )
+      );
+    case 'level':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'GET', '/v0/management/logging/level')
+      );
+    case 'set_level': {
+      const level = asOptionalString(input.body?.level) ?? asOptionalString(input.query?.level);
+      if (!level) {
+        throw new McpToolError(
+          'Missing level for set_level operation. Provide body.level or query.level.',
+          'invalid_request',
+          400
+        );
+      }
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'PUT', '/v0/management/logging/level', { level })
+      );
+    }
+    case 'reset_level':
+      return successResponse(
+        input.operation,
+        await callManagementRoute(shimContext, 'DELETE', '/v0/management/logging/level')
+      );
+    default:
+      throw unsupportedOperation(input.operation, ['recent', 'level', 'set_level', 'reset_level']);
+  }
+}
+
+function requireId(input: ToolInput, resourceType: string): string {
+  if (!input.id) {
+    throw new McpToolError(`Missing id for ${resourceType} operation.`, 'invalid_request', 400);
+  }
+  return input.id;
+}
+
+function mapRecordResponse(records: unknown): Array<Record<string, unknown>> {
+  const object = asObject(records);
+  return Object.entries(object).map(([id, value]) => ({ id, ...asObject(value) }));
+}
+
+function stripNamedId(value: unknown, key: string): Record<string, unknown> {
+  const object = asObject(value);
+  const { [key]: _ignored, ...rest } = object;
+  return rest;
+}
+
+function buildShimHeaders(request: FastifyRequest): Record<string, string> {
+  const headers: Record<string, string> = {};
+  const adminKey = request.headers['x-admin-key'];
+  if (typeof adminKey === 'string') {
+    headers['x-admin-key'] = adminKey;
+  }
+  return headers;
+}
+
+async function callManagementRoute(
+  shimContext: ManagementShimContext,
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
+  path: string,
+  body?: unknown,
+  query?: Record<string, unknown>,
+  raw: boolean = false,
+  extraHeaders?: Record<string, string>
+): Promise<any> {
+  const url = appendQuery(path, query);
+  const response: any = await (shimContext.fastify.inject as any)({
+    method,
+    url,
+    headers: {
+      ...shimContext.headers,
+      ...(body !== undefined && !Buffer.isBuffer(body)
+        ? { 'content-type': 'application/json' }
+        : {}),
+      ...extraHeaders,
+    },
+    payload: body as any,
+  });
+
+  if (response.statusCode >= 400) {
+    throw toMcpToolError(response);
+  }
+
+  if (raw) {
+    return response.rawPayload;
+  }
+
+  if (!response.body) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(response.body);
+  } catch {
+    return response.body;
+  }
+}
+
+function appendQuery(path: string, query?: Record<string, unknown>): string {
+  if (!query) return path;
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value === undefined || value === null || value === '') continue;
+    params.set(key, String(value));
+  }
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+function toMcpToolError(response: { statusCode: number; body: string }): McpToolError {
+  let parsed: any = null;
+  try {
+    parsed = response.body ? JSON.parse(response.body) : null;
+  } catch {
+    parsed = null;
+  }
+
+  const message =
+    parsed?.error?.message ??
+    parsed?.error ??
+    parsed?.message ??
+    (response.body || 'Management request failed');
+  const type =
+    parsed?.error?.type ??
+    (response.statusCode === 404
+      ? 'not_found'
+      : response.statusCode === 409
+        ? 'conflict_error'
+        : response.statusCode === 400
+          ? 'invalid_request'
+          : 'server_error');
+  const code = parsed?.error?.code ?? response.statusCode;
+  return new McpToolError(message, type, code);
+}
+
+function encodePathPreservingSlashes(value: string): string {
+  return value
+    .split('/')
+    .map((part) => encodeURIComponent(part))
+    .join('/');
 }
 
 function requireDestructiveAck(input: ToolInput) {
@@ -532,27 +1324,27 @@ function getToolDescription(toolName: string) {
     case 'plexus_config':
       return 'Inspect Plexus configuration and status. Initial operations: get, export, status.';
     case 'plexus_provider':
-      return 'Inspect providers and provider routing configuration. Initial operations: list, get.';
+      return 'Inspect and manage providers and provider routing configuration. Operations: list, get, put, create, update, delete, fetch_models.';
     case 'plexus_model_alias':
-      return 'Inspect model aliases, targets, and target groups. Initial operations: list, get.';
+      return 'Inspect and manage model aliases, targets, and target groups. Operations: list, get, put, create, update, delete, delete_all.';
     case 'plexus_key':
-      return 'Inspect inference keys with secrets redacted. Initial operations: list, get.';
+      return 'Inspect and manage inference keys with secrets redacted. Operations: list, get, put, create, update, delete.';
     case 'plexus_quota':
-      return 'Inspect user quota definitions. Initial operations: list, get.';
+      return 'Inspect and manage user quota definitions. Operations: list, get, put, create, update, delete.';
     case 'plexus_quota_checker':
       return 'Inspect upstream provider quota checker configuration. Initial operations: types, list, get.';
     case 'plexus_usage':
-      return 'Review request logs and summaries. Planned operations: list, summary, delete, delete_all.';
+      return 'Review request logs and summaries. Operations: list, summary, delete, delete_all.';
     case 'plexus_debug':
-      return 'Review and manage debug tracing. Planned operations: state, update, logs, get_log, delete_log, delete_all_logs.';
+      return 'Review and manage debug tracing. Operations: state, update, logs, get_log, delete_log, delete_all_logs.';
     case 'plexus_mcp_gateway':
-      return 'Inspect Plexus upstream MCP gateway configuration. Initial operations: servers_list, list, get.';
+      return 'Inspect and manage Plexus upstream MCP gateway configuration. Operations: servers_list, list, get, put, create, update, delete.';
     case 'plexus_settings':
       return 'Inspect Plexus settings by category. Initial operations: get.';
-    case 'plexus_operations':
-      return 'Run high-impact operational actions. Planned operations: backup, restore, restart, list_cooldowns, clear_cooldowns.';
     case 'plexus_system_logs':
-      return 'Access Plexus system logs. Planned operations: recent, stream.';
+      return 'Inspect recent Plexus system logs and control runtime log verbosity. Operations: recent, level, set_level, reset_level.';
+    case 'plexus_operations':
+      return 'Run high-impact operational actions. Operations: backup, restore, restart, list_cooldowns, clear_cooldowns, reset_logs.';
     default:
       return 'Plexus management tool.';
   }
