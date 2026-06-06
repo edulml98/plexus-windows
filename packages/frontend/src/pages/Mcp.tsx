@@ -408,8 +408,9 @@ export const McpPage: React.FC = () => {
               </div>
               <div className="mt-3 rounded border border-border-glass bg-bg-glass px-2 py-1.5 text-xs">
                 <span className="text-text-muted">
-                  Master toggle for all MCP endpoints. When disabled, all /mcp/* routes respond with
-                  HTTP 418.
+                  Toggle for the Plexus Management MCP only. When disabled, /mcp/plexus responds
+                  with HTTP 418, while configured gateway MCP routes under /mcp/:name continue to
+                  work.
                 </span>
               </div>
             </article>

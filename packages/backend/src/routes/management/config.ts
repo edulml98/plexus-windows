@@ -200,6 +200,20 @@ export async function registerConfigRoutes(
     }
   });
 
+  // Using wildcard to support slugs containing '/' (e.g. "provider/model")
+  fastify.get('/v0/management/aliases/*', async (request, reply) => {
+    const slug = (request.params as { '*': string })['*'];
+    try {
+      const alias = await configService.getRepository().getAlias(slug);
+      if (!alias) {
+        return reply.code(404).send({ error: `Alias '${slug}' not found` });
+      }
+      return reply.send({ slug, ...alias });
+    } catch (e: any) {
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
   // PUT — full create-or-replace with Zod validation
   // Using wildcard to support slugs containing '/' (e.g. "provider/model")
   fastify.put('/v0/management/aliases/*', async (request, reply) => {
@@ -297,6 +311,20 @@ export async function registerConfigRoutes(
     }
   });
 
+  fastify.get('/v0/management/keys/:name', async (request, reply) => {
+    const { name } = request.params as { name: string };
+    try {
+      const keys = await configService.getRepository().getAllKeys();
+      const key = keys[name];
+      if (!key) {
+        return reply.code(404).send({ error: `API key '${name}' not found` });
+      }
+      return reply.send({ name, ...key });
+    } catch (e: any) {
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
   // PUT — full create-or-replace with Zod validation
   fastify.put('/v0/management/keys/:name', async (request, reply) => {
     const { name } = request.params as { name: string };
@@ -310,6 +338,33 @@ export async function registerConfigRoutes(
       return reply.send({ success: true, name });
     } catch (e: any) {
       logger.error(`Failed to save API key '${name}'`, e);
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  fastify.patch('/v0/management/keys/:name', async (request, reply) => {
+    const { name } = request.params as { name: string };
+    const body = request.body as Record<string, unknown> | null;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return reply.code(400).send({ error: 'Object body is required' });
+    }
+
+    try {
+      const keys = await configService.getRepository().getAllKeys();
+      const existing = keys[name];
+      if (!existing) {
+        return reply.code(404).send({ error: `API key '${name}' not found` });
+      }
+      const merged = { ...existing, ...body };
+      const result = KeyConfigSchema.safeParse(merged);
+      if (!result.success) {
+        return reply.code(400).send({ error: 'Validation failed', details: result.error.issues });
+      }
+      await configService.saveKey(name, result.data);
+      logger.debug(`API key '${name}' updated via API (PATCH)`);
+      return reply.send({ success: true, name });
+    } catch (e: any) {
+      logger.error(`Failed to patch API key '${name}'`, e);
       return reply.code(500).send({ error: 'Internal server error' });
     }
   });
@@ -788,6 +843,21 @@ export async function registerConfigRoutes(
     }
   });
 
+  fastify.get('/v0/management/mcp-servers/:serverName', async (request, reply) => {
+    const { serverName } = request.params as { serverName: string };
+
+    try {
+      const servers = await configService.getRepository().getAllMcpServers();
+      const server = servers[serverName];
+      if (!server) {
+        return reply.code(404).send({ error: `MCP server '${serverName}' not found` });
+      }
+      return reply.send({ name: serverName, ...server });
+    } catch (e: any) {
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
   fastify.put('/v0/management/mcp-servers/:serverName', async (request, reply) => {
     const { serverName } = request.params as { serverName: string };
 
@@ -809,6 +879,40 @@ export async function registerConfigRoutes(
       return reply.send({ success: true, name: serverName });
     } catch (e: any) {
       logger.error(`Failed to save MCP server '${serverName}'`, e);
+      return reply.code(500).send({ error: 'Internal server error' });
+    }
+  });
+
+  fastify.patch('/v0/management/mcp-servers/:serverName', async (request, reply) => {
+    const { serverName } = request.params as { serverName: string };
+    const body = request.body as Record<string, unknown> | null;
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return reply.code(400).send({ error: 'Object body is required' });
+    }
+
+    if (!validateServerName(serverName)) {
+      return reply.code(400).send({
+        error:
+          'Invalid server name. Must be a non-reserved slug (lowercase letters, numbers, hyphens, underscores, 2-63 characters)',
+      });
+    }
+
+    try {
+      const servers = await configService.getRepository().getAllMcpServers();
+      const existing = servers[serverName];
+      if (!existing) {
+        return reply.code(404).send({ error: `MCP server '${serverName}' not found` });
+      }
+      const merged = { ...existing, ...body };
+      const result = McpServerConfigSchema.safeParse(merged);
+      if (!result.success) {
+        return reply.code(400).send({ error: 'Validation failed', details: result.error.issues });
+      }
+      await configService.saveMcpServer(serverName, result.data);
+      logger.debug(`MCP server '${serverName}' updated via API (PATCH)`);
+      return reply.send({ success: true, name: serverName });
+    } catch (e: any) {
+      logger.error(`Failed to patch MCP server '${serverName}'`, e);
       return reply.code(500).send({ error: 'Internal server error' });
     }
   });

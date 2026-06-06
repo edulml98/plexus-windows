@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test, vi } from 'vitest';
 import Fastify, { FastifyInstance } from 'fastify';
 import { registerSpy } from '../../../../test/test-utils';
-import { setConfigForTesting } from '../../../config';
+import { getConfig, setConfigForTesting } from '../../../config';
 import { registerMcpRoutes } from '../index';
 import { McpUsageStorageService } from '../../../services/mcp-proxy/mcp-usage-storage';
 import { UsageStorageService } from '../../../services/usage-storage';
@@ -12,15 +12,18 @@ import { BackupService } from '../../../services/backup-service';
 
 describe('Plexus management MCP routes', () => {
   let fastify: FastifyInstance;
+  let originalInject: FastifyInstance['inject'];
   let originalAdminKey: string | undefined;
   let mockMcpUsageStorage: McpUsageStorageService;
   let mockUsageStorage: UsageStorageService;
+  let mockLogLevel = 'info';
 
   beforeAll(async () => {
     originalAdminKey = process.env.ADMIN_KEY;
     process.env.ADMIN_KEY = 'test-admin-key';
 
     fastify = Fastify();
+    originalInject = fastify.inject.bind(fastify) as FastifyInstance['inject'];
     mockMcpUsageStorage = {
       saveRequest: vi.fn(),
       saveDebugLog: vi.fn(),
@@ -125,6 +128,258 @@ describe('Plexus management MCP routes', () => {
   beforeEach(() => {
     DebugManager.getInstance().setEnabled(false);
     DebugManager.getInstance().setProviderFilter(null);
+    mockLogLevel = 'info';
+    registerSpy(fastify, 'inject').mockImplementation(async (options: any) => {
+      const request = typeof options === 'string' ? { url: options, method: 'GET' } : options;
+      const url = request.url as string;
+      const method = (request.method ?? 'GET').toUpperCase();
+
+      if (!url.startsWith('/v0/management/') && !url.startsWith('/v0/system/logs/')) {
+        return originalInject(request as any);
+      }
+
+      const parts = url.split('?');
+      const path = parts[0] ?? '';
+      const queryString = parts[1] ?? '';
+      const query = Object.fromEntries(new URLSearchParams(queryString));
+      const json = (body: unknown, statusCode: number = 200) => ({
+        statusCode,
+        body: JSON.stringify(body),
+        rawPayload: Buffer.from(JSON.stringify(body)),
+      });
+
+      if (method === 'GET' && path === '/v0/management/config') {
+        return json(setConfigSnapshot());
+      }
+      if (method === 'GET' && path === '/v0/management/config/export') {
+        return json(setConfigSnapshot());
+      }
+      if (method === 'GET' && path === '/v0/management/providers') {
+        return json(setConfigSnapshot().providers ?? {});
+      }
+      if (method === 'GET' && path.startsWith('/v0/management/providers/')) {
+        const id = decodeURIComponent(path.replace('/v0/management/providers/', ''));
+        const provider = setConfigSnapshot().providers?.[id];
+        return provider ? json(provider) : json({ error: `Provider '${id}' not found` }, 404);
+      }
+      if (method === 'GET' && path === '/v0/management/aliases') {
+        return json(setConfigSnapshot().models ?? {});
+      }
+      if (method === 'GET' && path.startsWith('/v0/management/aliases/')) {
+        const id = decodeURIComponent(path.replace('/v0/management/aliases/', ''));
+        const alias = setConfigSnapshot().models?.[id];
+        return alias
+          ? json({ slug: id, ...alias })
+          : json({ error: `Alias '${id}' not found` }, 404);
+      }
+      if (method === 'GET' && path === '/v0/management/keys') {
+        return json(setConfigSnapshot().keys ?? {});
+      }
+      if (method === 'GET' && path.startsWith('/v0/management/keys/')) {
+        const id = decodeURIComponent(path.replace('/v0/management/keys/', ''));
+        const key = setConfigSnapshot().keys?.[id];
+        return key ? json({ name: id, ...key }) : json({ error: `API key '${id}' not found` }, 404);
+      }
+      if (method === 'PATCH' && path.startsWith('/v0/management/keys/')) {
+        const id = decodeURIComponent(path.replace('/v0/management/keys/', ''));
+        const current = setConfigSnapshot();
+        const existing = current.keys?.[id];
+        if (!existing) return json({ error: `API key '${id}' not found` }, 404);
+        setConfigForTesting({
+          ...current,
+          keys: {
+            ...current.keys,
+            [id]: { ...existing, ...(request.payload as Record<string, unknown>) },
+          },
+        } as any);
+        return json({ success: true, name: id });
+      }
+      if (method === 'GET' && path === '/v0/management/user-quotas') {
+        return json(setConfigSnapshot().user_quotas ?? {});
+      }
+      if (method === 'GET' && path.startsWith('/v0/management/user-quotas/')) {
+        const id = decodeURIComponent(path.replace('/v0/management/user-quotas/', ''));
+        const quota = setConfigSnapshot().user_quotas?.[id];
+        return quota
+          ? json({ name: id, ...quota })
+          : json({ error: { message: `Quota not found: ${id}`, type: 'not_found_error' } }, 404);
+      }
+      if (method === 'GET' && path === '/v0/management/mcp-servers') {
+        return json(setConfigSnapshot().mcpServers ?? setConfigSnapshot().mcp_servers ?? {});
+      }
+      if (method === 'GET' && path.startsWith('/v0/management/mcp-servers/')) {
+        const id = decodeURIComponent(path.replace('/v0/management/mcp-servers/', ''));
+        const server = (setConfigSnapshot().mcpServers ?? setConfigSnapshot().mcp_servers ?? {})[
+          id
+        ];
+        return server
+          ? json({ name: id, ...server })
+          : json({ error: `MCP server '${id}' not found` }, 404);
+      }
+      if (method === 'GET' && path === '/v0/management/config/failover') {
+        return json(setConfigSnapshot().failover ?? {});
+      }
+      if (method === 'GET' && path === '/v0/management/config/cooldown') {
+        return json(setConfigSnapshot().cooldown ?? {});
+      }
+      if (method === 'GET' && path === '/v0/management/config/timeout') {
+        return json(setConfigSnapshot().timeout ?? {});
+      }
+      if (method === 'GET' && path === '/v0/management/config/stall') {
+        return json(setConfigSnapshot().stall ?? {});
+      }
+      if (method === 'GET' && path === '/v0/management/config/trusted-proxies') {
+        return json({ trustedProxies: setConfigSnapshot().trustedProxies ?? [] });
+      }
+      if (method === 'GET' && path === '/v0/management/config/vision-fallthrough') {
+        return json(setConfigSnapshot().vision_fallthrough ?? {});
+      }
+      if (method === 'GET' && path === '/v0/management/config/background-exploration') {
+        return json(setConfigSnapshot().backgroundExploration ?? {});
+      }
+      if (method === 'GET' && path === '/v0/management/config/exploration-rate') {
+        return json({
+          performanceExplorationRate: setConfigSnapshot().performanceExplorationRate ?? 0.05,
+          latencyExplorationRate: setConfigSnapshot().latencyExplorationRate ?? 0.05,
+          e2ePerformanceExplorationRate: setConfigSnapshot().e2ePerformanceExplorationRate ?? 0.05,
+        });
+      }
+      if (method === 'GET' && path === '/v0/system/logs/recent') {
+        return json({
+          data: [{ level: 'info', message: 'system-log', timestamp: '2026-01-01 00:00:00' }],
+          total: 1,
+        });
+      }
+      if (method === 'GET' && path === '/v0/management/logging/level') {
+        return json({
+          level: mockLogLevel,
+          startupLevel: 'info',
+          supportedLevels: ['error', 'warn', 'info', 'debug', 'verbose', 'silly'],
+          ephemeral: true,
+        });
+      }
+      if (method === 'PUT' && path === '/v0/management/logging/level') {
+        mockLogLevel = (request.payload as any)?.level ?? mockLogLevel;
+        return json({
+          level: mockLogLevel,
+          startupLevel: 'info',
+          supportedLevels: ['error', 'warn', 'info', 'debug', 'verbose', 'silly'],
+          ephemeral: true,
+        });
+      }
+      if (method === 'DELETE' && path === '/v0/management/logging/level') {
+        mockLogLevel = 'info';
+        return json({
+          level: mockLogLevel,
+          startupLevel: 'info',
+          supportedLevels: ['error', 'warn', 'info', 'debug', 'verbose', 'silly'],
+          ephemeral: true,
+        });
+      }
+      if (method === 'GET' && path === '/v0/management/usage') {
+        return json(await (mockUsageStorage.getUsage as any)({}, { limit: 50, offset: 0 }));
+      }
+      if (method === 'GET' && path === '/v0/management/usage/summary') {
+        return json({
+          range: query.range ?? 'day',
+          series: [],
+          stats: { totalRequests: 1 },
+          today: { requests: 1 },
+        });
+      }
+      if (method === 'DELETE' && path === '/v0/management/usage') {
+        await (mockUsageStorage.deleteAllUsageLogs as any)();
+        return json({
+          success: true,
+          olderThanDays: query.olderThanDays ? Number(query.olderThanDays) : null,
+        });
+      }
+      if (method === 'DELETE' && path.startsWith('/v0/management/usage/')) {
+        await (mockUsageStorage.deleteUsageLog as any)(
+          decodeURIComponent(path.replace('/v0/management/usage/', ''))
+        );
+        return json({ success: true });
+      }
+      if (method === 'GET' && path === '/v0/management/debug') {
+        return json({
+          enabled: DebugManager.getInstance().isEnabled(),
+          enabledGlobal: DebugManager.getInstance().isEnabled(),
+          enabledKeys: DebugManager.getInstance().getEnabledKeys(),
+          providers: DebugManager.getInstance().getProviderFilter(),
+        });
+      }
+      if (method === 'PATCH' && path === '/v0/management/debug') {
+        const body = (request.payload ?? {}) as any;
+        if (typeof body.enabled === 'boolean') DebugManager.getInstance().setEnabled(body.enabled);
+        if (body.providers !== undefined)
+          DebugManager.getInstance().setProviderFilter(body.providers ?? null);
+        return json({
+          enabled: DebugManager.getInstance().isEnabled(),
+          enabledGlobal: DebugManager.getInstance().isEnabled(),
+          enabledKeys: DebugManager.getInstance().getEnabledKeys(),
+          providers: DebugManager.getInstance().getProviderFilter(),
+        });
+      }
+      if (method === 'GET' && path === '/v0/management/debug/logs') {
+        return json(await (mockUsageStorage.getDebugLogs as any)(50, 0));
+      }
+      if (method === 'GET' && path.startsWith('/v0/management/debug/logs/')) {
+        const id = decodeURIComponent(path.replace('/v0/management/debug/logs/', ''));
+        const log = await (mockUsageStorage.getDebugLog as any)(id);
+        return log ? json(log) : json({ error: 'Log not found' }, 404);
+      }
+      if (method === 'DELETE' && path === '/v0/management/debug/logs') {
+        await (mockUsageStorage.deleteAllDebugLogs as any)();
+        return json({ success: true });
+      }
+      if (method === 'DELETE' && path.startsWith('/v0/management/debug/logs/')) {
+        await (mockUsageStorage.deleteDebugLog as any)(
+          decodeURIComponent(path.replace('/v0/management/debug/logs/', ''))
+        );
+        return json({ success: true });
+      }
+      if (method === 'GET' && path === '/v0/management/backup') {
+        return json({
+          plexus_backup: true,
+          version: 1,
+          created_at: '2026-01-01T00:00:00.000Z',
+          dialect: 'sqlite',
+          data: {
+            providers: {},
+            models: {},
+            keys: {},
+            user_quotas: {},
+            mcp_servers: {},
+            settings: {},
+            oauth_credentials: [],
+          },
+        });
+      }
+      if (method === 'POST' && path === '/v0/management/restore') {
+        return json({
+          success: true,
+          restored: {},
+          message: 'Config restore complete. Server is restarting to apply changes.',
+        });
+      }
+      if (method === 'GET' && path === '/v0/management/cooldowns') {
+        return json([]);
+      }
+      if (method === 'DELETE' && path === '/v0/management/cooldowns') {
+        return json({ success: true });
+      }
+      if (method === 'DELETE' && path.startsWith('/v0/management/cooldowns/')) {
+        return json({ success: true });
+      }
+      if (method === 'DELETE' && path === '/v0/management/logs/reset') {
+        return json({ success: true, message: 'All logs have been reset successfully' });
+      }
+      if (method === 'POST' && path === '/v0/management/restart') {
+        return json({ success: true, message: 'Server is restarting' });
+      }
+
+      return json({ error: `Unhandled management route in test: ${method} ${url}` }, 404);
+    });
     registerSpy(mcpProxyService, 'proxyMcpRequest').mockResolvedValue({
       status: 200,
       headers: { 'content-type': 'application/json' },
@@ -185,6 +440,31 @@ describe('Plexus management MCP routes', () => {
     expect(mcpProxyService.proxyMcpRequest).not.toHaveBeenCalled();
   });
 
+  test('records plexus admin MCP requests in MCP usage logs', async () => {
+    const response = await postPlexusMcp(
+      {
+        method: 'tools/call',
+        id: 1,
+        params: {
+          name: 'plexus_config',
+          arguments: { operation: 'status' },
+        },
+      },
+      adminHeaders()
+    );
+
+    expect(response.statusCode).toBe(200);
+    expect(mockMcpUsageStorage.saveRequest).toHaveBeenCalled();
+    const record = (mockMcpUsageStorage.saveRequest as any).mock.calls.at(-1)?.[0];
+    expect(record.server_name).toBe('plexus');
+    expect(record.upstream_url).toBe('/mcp/plexus');
+    expect(record.method).toBe('POST');
+    expect(record.jsonrpc_method).toBe('tools/call');
+    expect(record.tool_name).toBe('plexus_config');
+    expect(record.api_key).toBe('admin');
+    expect(record.response_status).toBe(200);
+  });
+
   test('keeps other /mcp/:name gateway routes working', async () => {
     const response = await fastify.inject({
       method: 'POST',
@@ -221,11 +501,9 @@ describe('Plexus management MCP routes', () => {
         'plexus_debug',
         'plexus_mcp_gateway',
         'plexus_settings',
+        'plexus_system_logs',
         'plexus_operations',
       ])
-    );
-    expect(body.result.tools.map((tool: { name: string }) => tool.name)).not.toContain(
-      'plexus_system_logs'
     );
   });
 
@@ -424,12 +702,69 @@ describe('Plexus management MCP routes', () => {
     expect(getBody.result.structuredContent.data.requestId).toBe('req-debug');
   });
 
-  test('implements plexus_operations cooldown operations', async () => {
-    const cooldownSpy = registerSpy(
-      CooldownManager.getInstance(),
-      'clearCooldown'
-    ).mockResolvedValue();
+  test('implements plexus_system_logs recent', async () => {
+    const response = await postPlexusMcp(
+      {
+        method: 'tools/call',
+        id: 1,
+        params: {
+          name: 'plexus_system_logs',
+          arguments: { operation: 'recent', query: { limit: 10 } },
+        },
+      },
+      adminHeaders()
+    );
+    const body = parseJsonRpcResponse(response);
+    expect(body.result.structuredContent.ok).toBe(true);
+    expect(body.result.structuredContent.data.total).toBe(1);
+    expect(body.result.structuredContent.data.data[0].message).toBe('system-log');
+  });
 
+  test('implements plexus_system_logs level operations', async () => {
+    const levelResponse = await postPlexusMcp(
+      {
+        method: 'tools/call',
+        id: 1,
+        params: {
+          name: 'plexus_system_logs',
+          arguments: { operation: 'level' },
+        },
+      },
+      adminHeaders()
+    );
+    const levelBody = parseJsonRpcResponse(levelResponse);
+    expect(levelBody.result.structuredContent.data.level).toBe('info');
+
+    const setLevelResponse = await postPlexusMcp(
+      {
+        method: 'tools/call',
+        id: 2,
+        params: {
+          name: 'plexus_system_logs',
+          arguments: { operation: 'set_level', body: { level: 'debug' } },
+        },
+      },
+      adminHeaders()
+    );
+    const setLevelBody = parseJsonRpcResponse(setLevelResponse);
+    expect(setLevelBody.result.structuredContent.data.level).toBe('debug');
+
+    const resetLevelResponse = await postPlexusMcp(
+      {
+        method: 'tools/call',
+        id: 3,
+        params: {
+          name: 'plexus_system_logs',
+          arguments: { operation: 'reset_level' },
+        },
+      },
+      adminHeaders()
+    );
+    const resetLevelBody = parseJsonRpcResponse(resetLevelResponse);
+    expect(resetLevelBody.result.structuredContent.data.level).toBe('info');
+  });
+
+  test('implements plexus_operations cooldown operations', async () => {
     const listResponse = await postPlexusMcp(
       {
         method: 'tools/call',
@@ -461,7 +796,6 @@ describe('Plexus management MCP routes', () => {
     );
     const clearBody = parseJsonRpcResponse(clearResponse);
     expect(clearBody.result.structuredContent.data.success).toBe(true);
-    expect(cooldownSpy).toHaveBeenCalledWith('openrouter', 'openai/gpt-5');
   });
 
   test('implements plexus_operations backup and restart response', async () => {
@@ -509,7 +843,42 @@ describe('Plexus management MCP routes', () => {
     );
     const restartBody = parseJsonRpcResponse(restartResponse);
     expect(restartBody.result.structuredContent.ok).toBe(true);
-    expect(restartBody.result.structuredContent.data.supported).toBe(false);
+    expect(restartBody.result.structuredContent.data.success).toBe(true);
+    expect(restartBody.result.structuredContent.data.message).toContain('restarting');
+  });
+
+  test('implements plexus_key update through the management shim', async () => {
+    const updateResponse = await postPlexusMcp(
+      {
+        method: 'tools/call',
+        id: 1,
+        params: {
+          name: 'plexus_key',
+          arguments: {
+            operation: 'update',
+            id: 'test-key',
+            body: { beta: true },
+          },
+        },
+      },
+      adminHeaders()
+    );
+    const updateBody = parseJsonRpcResponse(updateResponse);
+    expect(updateBody.result.structuredContent.ok).toBe(true);
+
+    const getResponse = await postPlexusMcp(
+      {
+        method: 'tools/call',
+        id: 2,
+        params: {
+          name: 'plexus_key',
+          arguments: { operation: 'get', id: 'test-key' },
+        },
+      },
+      adminHeaders()
+    );
+    const getBody = parseJsonRpcResponse(getResponse);
+    expect(getBody.result.structuredContent.data.beta).toBe(true);
   });
 
   function postPlexusMcp(payload: Record<string, unknown>, headers: Record<string, string> = {}) {
@@ -527,6 +896,10 @@ describe('Plexus management MCP routes', () => {
 
   function adminHeaders() {
     return { 'x-admin-key': 'test-admin-key' };
+  }
+
+  function setConfigSnapshot() {
+    return structuredClone(getConfig());
   }
 
   function parseJsonRpcResponse(response: Awaited<ReturnType<typeof postPlexusMcp>>) {

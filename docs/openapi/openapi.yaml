@@ -540,6 +540,8 @@ paths:
     $ref: paths/v0_management_events.yaml
   /v0/system/logs/stream:
     $ref: paths/v0_system_logs_stream.yaml
+  /v0/system/logs/recent:
+    $ref: paths/v0_system_logs_recent.yaml
   /mcp/{name}:
     $ref: paths/mcp_{name}.yaml
   /.well-known/oauth-authorization-server:

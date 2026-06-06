@@ -62,7 +62,7 @@ export async function registerMcpRoutes(
     });
   });
 
-  await registerPlexusMcpRoutes(fastify, usageStorage);
+  await registerPlexusMcpRoutes(fastify, mcpUsageStorage, usageStorage);
 
   fastify.register(async (protectedRoutes) => {
     const auth = createAuthHook();
