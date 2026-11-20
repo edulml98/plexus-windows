@@ -17,6 +17,7 @@ import {
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { DebouncedInput } from '../ui/DebouncedInput';
+import { ExtraBodyFieldRow } from '../ui/ExtraBodyFieldRow';
 import { Switch } from '../ui/Switch';
 import { Tooltip } from '../ui/Tooltip';
 import {
@@ -1111,34 +1112,14 @@ export function ProviderAdvancedEditor({
                   </div>
                 )}
                 {Object.entries(editingProvider.extraBody || {}).map(([key, val], idx) => (
-                  <div key={idx} style={{ display: 'flex', gap: '6px' }}>
-                    <DebouncedInput
-                      placeholder="Field Name"
-                      value={key}
-                      onChange={(newKey: string) => updateKV('extraBody', key, newKey, val)}
-                      style={{ flex: 1 }}
-                    />
-                    <DebouncedInput
-                      placeholder="Value"
-                      value={typeof val === 'object' ? JSON.stringify(val) : val}
-                      onChange={(val: string) => {
-                        try {
-                          updateKV('extraBody', key, key, JSON.parse(val));
-                        } catch {
-                          updateKV('extraBody', key, key, val);
-                        }
-                      }}
-                      style={{ flex: 1 }}
-                    />
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeKV('extraBody', key)}
-                      style={{ padding: '4px' }}
-                    >
-                      <Trash2 size={14} style={{ color: 'var(--color-danger)' }} />
-                    </Button>
-                  </div>
+                  <ExtraBodyFieldRow
+                    key={idx}
+                    fieldKey={key}
+                    value={val}
+                    onKeyChange={(newKey: string) => updateKV('extraBody', key, newKey, val)}
+                    onValueChange={(newValue: unknown) => updateKV('extraBody', key, key, newValue)}
+                    onRemove={() => removeKV('extraBody', key)}
+                  />
                 ))}
               </div>
             )}

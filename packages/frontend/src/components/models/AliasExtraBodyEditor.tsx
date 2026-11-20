@@ -1,9 +1,9 @@
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus } from 'lucide-react';
 
 import type { Alias } from '../../lib/api';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
-import { Input } from '../ui/Input';
+import { ExtraBodyFieldRow } from '../ui/ExtraBodyFieldRow';
 
 interface Props {
   editingAlias: Alias;
@@ -77,37 +77,14 @@ export function AliasExtraBodyEditor({ editingAlias, setEditingAlias }: Props) {
           </div>
         )}
         {entries.map(([key, val]: [string, any], idx: number) => (
-          <div key={idx} style={{ display: 'flex', gap: '6px' }}>
-            <Input
-              placeholder="Field Name"
-              value={key}
-              onChange={(e) => updateKV(key, e.target.value, val)}
-              style={{ flex: 1 }}
-            />
-            <Input
-              placeholder="Value"
-              value={typeof val === 'object' ? JSON.stringify(val) : String(val)}
-              onChange={(e) => {
-                const raw = e.target.value;
-                let parsed: any = raw;
-                try {
-                  parsed = JSON.parse(raw);
-                } catch {
-                  // keep as string
-                }
-                updateKV(key, key, parsed);
-              }}
-              style={{ flex: 1 }}
-            />
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => removeKV(key)}
-              style={{ padding: '4px' }}
-            >
-              <Trash2 size={14} style={{ color: 'var(--color-danger)' }} />
-            </Button>
-          </div>
+          <ExtraBodyFieldRow
+            key={idx}
+            fieldKey={key}
+            value={val}
+            onKeyChange={(newKey: string) => updateKV(key, newKey, val)}
+            onValueChange={(newValue: unknown) => updateKV(key, key, newValue)}
+            onRemove={() => removeKV(key)}
+          />
         ))}
       </div>
     </div>

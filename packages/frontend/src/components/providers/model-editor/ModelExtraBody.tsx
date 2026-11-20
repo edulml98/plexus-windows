@@ -1,8 +1,8 @@
-import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Plus } from 'lucide-react';
 
 import { Badge } from '../../ui/Badge';
 import { Button } from '../../ui/Button';
-import { DebouncedInput } from '../../ui/DebouncedInput';
+import { ExtraBodyFieldRow } from '../../ui/ExtraBodyFieldRow';
 import type { ModelConfig } from './types';
 
 interface Props {
@@ -68,34 +68,14 @@ export function ModelExtraBody({
           )}
           {Object.entries(modelConfig.extraBody || {}).map(
             ([key, val]: [string, any], idx: number) => (
-              <div key={idx} style={{ display: 'flex', gap: '6px' }}>
-                <DebouncedInput
-                  placeholder="Field Name"
-                  value={key}
-                  onChange={(newKey: string) => updateModelKV(modelId, key, newKey, val)}
-                  style={{ flex: 1 }}
-                />
-                <DebouncedInput
-                  placeholder="Value"
-                  value={typeof val === 'object' ? JSON.stringify(val) : String(val)}
-                  onChange={(val: string) => {
-                    try {
-                      updateModelKV(modelId, key, key, JSON.parse(val));
-                    } catch {
-                      updateModelKV(modelId, key, key, val);
-                    }
-                  }}
-                  style={{ flex: 1 }}
-                />
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => removeModelKV(modelId, key)}
-                  style={{ padding: '4px' }}
-                >
-                  <Trash2 size={14} style={{ color: 'var(--color-danger)' }} />
-                </Button>
-              </div>
+              <ExtraBodyFieldRow
+                key={idx}
+                fieldKey={key}
+                value={val}
+                onKeyChange={(newKey: string) => updateModelKV(modelId, key, newKey, val)}
+                onValueChange={(newValue: unknown) => updateModelKV(modelId, key, key, newValue)}
+                onRemove={() => removeModelKV(modelId, key)}
+              />
             )
           )}
         </div>
